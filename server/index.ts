@@ -8,6 +8,7 @@ import { createServer } from "http";
 import { seedDatabase } from "./seed";
 import { autoBookPendingQuotes } from "./storage";
 import { refreshTokenIfNeeded } from "./whatsapp";
+import { buildAllowedOrigins } from "./lib/allowed-origins";
 
 const app = express();
 const httpServer = createServer(app);
@@ -44,40 +45,11 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 });
 
 // Build the allowed-origin set from hard-coded defaults plus any extra origins
-// supplied at runtime via APP_URL (single URL) or ALLOWED_ORIGINS_EXTRA
-// (comma-separated list).  This lets production deployments override the
-// default Replit URL without a code change.
-const ALLOWED_ORIGINS = new Set([
-  "capacitor://localhost",
-  "http://localhost",
-  "https://localhost",
-  "http://localhost:5000",
-  "https://tmg-install-project--tmginstall.replit.app",
-]);
-if (process.env.APP_URL) {
-  try { ALLOWED_ORIGINS.add(new URL(process.env.APP_URL).origin); } catch { /* ignore malformed */ }
-}
-if (process.env.ALLOWED_ORIGINS_EXTRA) {
-  for (const raw of process.env.ALLOWED_ORIGINS_EXTRA.split(",")) {
-    const trimmed = raw.trim();
-    if (trimmed) {
-      try { ALLOWED_ORIGINS.add(new URL(trimmed).origin); } catch { /* ignore malformed */ }
-    }
-  }
-}
-// Allow the Replit-provided preview/deployment domains so the app works inside
-// the Replit webview (dev) and on the .replit.app deployment without manual
-// configuration. These are comma-separated bare hostnames (no scheme).
-for (const envName of ["REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN"]) {
-  const value = process.env[envName];
-  if (!value) continue;
-  for (const raw of value.split(",")) {
-    const host = raw.trim();
-    if (host) {
-      try { ALLOWED_ORIGINS.add(new URL(`https://${host}`).origin); } catch { /* ignore malformed */ }
-    }
-  }
-}
+// supplied at runtime (APP_URL, ALLOWED_ORIGINS_EXTRA) and the Replit-provided
+// preview/deployment domains (REPLIT_DOMAINS, REPLIT_DEV_DOMAIN). The logic
+// lives in a small pure helper so it can be unit-tested — see
+// tests/allowedOrigins.test.ts.
+const ALLOWED_ORIGINS = buildAllowedOrigins(process.env);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin as string | undefined;
