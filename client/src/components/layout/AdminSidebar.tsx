@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Calendar, MessageCircle, Users, Receipt,
   BarChart2, FileDown, Settings, HelpCircle, LogOut,
-  Smartphone, X, Share, Search, Truck, Bot, Handshake,
+  Smartphone, X, Share, Search, Truck, Bot, Handshake, Star,
 } from "lucide-react";
 import { useAdminManifest, useAdminInstallPrompt } from "@/hooks/use-admin-pwa";
 
