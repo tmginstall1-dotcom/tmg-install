@@ -8,15 +8,11 @@ packages = ["android-tools"]
 
 [[ports]]
 localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5904
-externalPort = 3000
+externalPort = 5000
 
 [[ports]]
 localPort = 23636
-externalPort = 4200
+externalPort = 80
 
 [env]
 PORT = "5000"
