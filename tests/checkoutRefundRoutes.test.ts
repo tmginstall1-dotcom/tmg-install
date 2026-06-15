@@ -52,8 +52,23 @@ import type { AddressInfo } from "net";
 // ---------------------------------------------------------------------------
 const STUB_STRIPE_URL = "https://checkout.stripe.test/c/pay/cs_test_stub";
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_dummy_for_tests";
+// Capture the exact params handed to Stripe so the balance test can assert the
+// amount charged. createStripePaymentLink (server/routes.ts ~1599) builds a
+// single line item with `unit_amount: Math.round(amountSGD * 100)` in cents, so
+// the captured value is the source of truth for what the customer would pay.
+let lastStripeCreateParams: any = null;
 Object.getPrototypeOf(new Stripe(process.env.STRIPE_SECRET_KEY).checkout.sessions).create =
-  async () => ({ url: STUB_STRIPE_URL });
+  async (params: any) => {
+    lastStripeCreateParams = params;
+    return { url: STUB_STRIPE_URL };
+  };
+
+// Pull the SGD amount (dollars) out of the last captured Stripe params.
+function lastStripeAmountSGD(): number {
+  const cents = lastStripeCreateParams?.line_items?.[0]?.price_data?.unit_amount;
+  if (typeof cents !== "number") throw new Error("no Stripe unit_amount captured");
+  return cents / 100;
+}
 
 // registerRoutes starts long-lived background setInterval schedulers
 // (server/routes.ts ~11600-11856) that keep the event loop alive forever. The
@@ -357,6 +372,191 @@ test("HTTP: admin dispute-log note requires auth, persists, and shows up on the 
         await storage.deleteQuote(quoteId);
       } catch {
         /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+// =============================================================================
+// Balance (final) branch of GET /api/quotes/:id/checkout?type=final
+//
+// This branch is the financial mirror of the deposit happy path: it computes the
+// outstanding amount with finalBalanceOutstanding(total, finalAmount, deposit,
+// ledgerPaid) (server/routes.ts ~4717) and hard-stops with HTTP 400 when nothing
+// is owed (~4723). A bug here could overcharge a customer, undercharge, or open a
+// charge for an already-settled job. The deposit test already proves the route
+// returns the stubbed Stripe URL, so here we additionally assert the AMOUNT that
+// would be charged equals the expected balance, by capturing the unit_amount the
+// route hands to Stripe (see lastStripeAmountSGD at the top of the file).
+//
+// Unlike the deposit branch, the final branch has NO terms-acceptance gate, so we
+// do not need to call recordTermsAcceptance here.
+// =============================================================================
+test("HTTP: balance checkout charges total − deposit − ledger payments", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const { finalBalanceOutstanding } = await import("../shared/pricing.ts");
+  const refNo = `TEST-HTTP-BALANCE-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  // Known money shape: $300 total, $150 deposit, $150 stored final balance, and a
+  // $50 partial payment already recorded in the ledger. Expected outstanding is
+  // therefore 150 − 50 = $100. We assert against an independently-computed value
+  // from the shared helper so this test fails if either the route OR the helper
+  // drifts.
+  const TOTAL = 300;
+  const DEPOSIT = "150";
+  const FINAL = "150";
+  const LEDGER_PARTIAL = 50;
+  const expectedBalance = finalBalanceOutstanding(TOTAL, FINAL, DEPOSIT, LEDGER_PARTIAL);
+
+  try {
+    const created = await storage.createQuote(
+      { name: "HTTP Balance Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000006" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "4 Route Rd, Singapore",
+        status: "deposit_paid",
+        subtotal: String(TOTAL),
+        total: String(TOTAL),
+        depositAmount: DEPOSIT,
+        finalAmount: FINAL,
+        version: 1,
+        paymentStatus: "deposit_paid",
+        depositPaidAt: new Date(),
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    // Record a $50 partial payment in the ledger — this is exactly what
+    // getLedgerPaidTotal sums and the route subtracts from the balance.
+    await storage.recordQuotePayment({
+      quoteId: quoteId!,
+      amount: String(LEDGER_PARTIAL),
+      method: "cash",
+    } as any);
+
+    // Sanity: the helper math the route relies on must agree with the ledger.
+    assert.equal(expectedBalance, 100, "expected balance for this fixture is $100");
+    const ledgerCheck = await storage.getLedgerPaidTotal(quoteId!);
+    assert.equal(ledgerCheck, LEDGER_PARTIAL, "ledger should hold exactly the $50 partial payment");
+
+    app = await startApp();
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/checkout?type=final`);
+    assert.equal(res.status, 200, "balance checkout with money owed must return 200");
+    const body = await res.json();
+    assert.equal(body.url, STUB_STRIPE_URL, "successful balance checkout must return the Stripe URL");
+
+    // The crux: the amount handed to Stripe must equal the outstanding balance,
+    // not the total, the deposit, or the gross final before partial payments.
+    assert.equal(
+      lastStripeAmountSGD(),
+      expectedBalance,
+      "Stripe must be charged the outstanding balance (total − deposit − ledger)",
+    );
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP balance test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+test("HTTP: balance checkout returns 400 when nothing is owed (under-threshold + fully-settled)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  let underThresholdId: number | undefined;
+  let settledId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    // (a) Under-threshold job: total < $150 ⇒ paid in full up front ⇒ NEVER has a
+    // final balance, even with a stale stored finalAmount. The route must 400.
+    const underRef = `TEST-HTTP-NOBAL-FULL-${Date.now()}`;
+    const underCreated = await storage.createQuote(
+      { name: "HTTP NoBalance Full", email: `${underRef.toLowerCase()}@example.test`, phone: "+6580000007" },
+      {
+        referenceNo: underRef,
+        serviceAddress: "5 Route Rd, Singapore",
+        status: "deposit_paid",
+        subtotal: "120",
+        total: "120",
+        depositAmount: "120",
+        finalAmount: "60", // deliberately stale: must be ignored for under-threshold
+        version: 1,
+        paymentStatus: "paid",
+      } as any,
+      [],
+    );
+    underThresholdId = underCreated.id;
+
+    // (b) Fully-settled job at/above threshold: the ledger already covers the full
+    // final balance, so the outstanding amount is $0 and the route must 400 (never
+    // create a charge for an already-paid job).
+    const settledRef = `TEST-HTTP-NOBAL-SETTLED-${Date.now()}`;
+    const settledCreated = await storage.createQuote(
+      { name: "HTTP NoBalance Settled", email: `${settledRef.toLowerCase()}@example.test`, phone: "+6580000008" },
+      {
+        referenceNo: settledRef,
+        serviceAddress: "6 Route Rd, Singapore",
+        status: "completed",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "paid",
+      } as any,
+      [],
+    );
+    settledId = settledCreated.id;
+    // Record the full $150 balance as a ledger payment so nothing remains owed.
+    await storage.recordQuotePayment({
+      quoteId: settledId!,
+      amount: "150",
+      method: "cash",
+    } as any);
+
+    app = await startApp();
+
+    const underRes = await fetch(`${app.base}/api/quotes/${underThresholdId}/checkout?type=final`);
+    assert.equal(underRes.status, 400, "under-threshold full-payment job must have no balance (400)");
+    const underBody = await underRes.json();
+    assert.match(underBody.message, /no outstanding balance/i, "400 must explain there is no balance");
+
+    const settledRes = await fetch(`${app.base}/api/quotes/${settledId}/checkout?type=final`);
+    assert.equal(settledRes.status, 400, "fully-settled job must have no balance (400)");
+    const settledBody = await settledRes.json();
+    assert.match(settledBody.message, /no outstanding balance/i, "400 must explain there is no balance");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP no-balance test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    const { storage } = await import("../server/storage.ts");
+    for (const id of [underThresholdId, settledId]) {
+      if (id !== undefined) {
+        try {
+          await storage.deleteQuote(id);
+        } catch {
+          /* best-effort cleanup */
+        }
       }
     }
   }
