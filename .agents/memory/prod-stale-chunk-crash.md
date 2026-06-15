@@ -75,6 +75,38 @@ out of the app switcher) and relaunch — cold launch re-checks sw.js and the ne
 activate handler self-heals. If still stuck, delete the home-screen icon and
 re-add it (nuclear, always works).
 
+# The DURABLE fix after smarter-caching kept failing: stop caching entirely
+
+After multiple rounds of "smarter" caching service workers (network-first HTML,
+activate-time force-navigate, hardReload) STILL could not reliably rescue a
+pinned iOS PWA, the right call was to stop fighting the SW cache and remove it:
+make `sw.js` a **push-only worker with NO `fetch` handler at all**. With no
+fetch interception the browser loads every navigation + script straight from
+the network, and since the server already sends `no-cache` for index.html and
+`immutable` for content-hashed `/assets/*`, the app is always fresh and the
+stale-shell crash becomes **structurally impossible** — there is no cache for
+it to be served from.
+
+**Why not just delete the SW?** It also carries the Web Push handlers
+(`push` + `notificationclick`) for WhatsApp admin alerts. Push needs a
+registered worker but does NOT need a fetch handler — so keep the worker, keep
+the push handlers, drop only the caching/fetch logic. The new worker's
+`activate` still deletes every old cache + `clients.claim()` + navigates open
+windows so already-stuck pages re-fetch fresh on the next update.
+
+**Verified server-side caching headers (all correct, don't touch):** prod
+`/sw.js` and `/` (index.html) both come back `Cache-Control: no-cache`,
+hashed `/assets/*` come back `private, max-age=31536000, immutable`. So the bug
+was never HTTP caching — it was the SW's own Cache Storage. Set in
+`server/static.ts` (sw.js + both manifest*.json forced to `no-cache`; html
+`no-cache,no-store,must-revalidate`; assets immutable 1y).
+
+**Tradeoff accepted:** browser PWA loses offline browsing. Fine for an ops/admin
+tool; the native Capacitor staff app handles its own offline data separately.
+
+**Two PWA manifests exist:** `client/public/manifest.json` (start_url `/`) and
+`manifest-admin.json` (start_url `/admin`) — a device may be pinned to either.
+
 # Deploy-log migration warning is a FALSE ALARM here
 
 Deploy logs print "the connected database is MISSING committed schema

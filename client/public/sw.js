@@ -1,109 +1,68 @@
-// v8 — Smarter caching: cache-first for hashed bundles, network-first for pages.
-// Service worker is disabled for the native Capacitor app (TMGStaffApp
-// user agent). It runs only in normal browsers for PWA offline support.
+// v9 — NO-CACHE service worker (push-only; never serves the app from cache).
 //
-// Bumping the cache version forces this worker to activate (skipWaiting +
-// clients.claim) and drop every previous cache, so a returning visitor stops
-// serving a stale app shell that points at chunk filenames a new deploy
-// removed.
+// WHY THIS IS NOT A CACHING WORKER ANYMORE:
+// Earlier versions cached the app shell (index.html + hashed JS chunks) for
+// offline use. On installed iOS PWAs this repeatedly stranded users on a STALE
+// index.html that referenced chunk files a later deploy had already removed,
+// producing the "Something went wrong / Please reload to get the latest
+// version" crash. Apple's PWA engine updates a pinned service worker so
+// unreliably that no amount of smarter caching could clear it remotely.
+//
+// THE FIX: stop intercepting requests entirely. With NO `fetch` handler the
+// browser loads every navigation and script straight from the network. The
+// server already sends `no-cache` for index.html and `immutable` for the
+// content-hashed /assets bundles, so pages are always fresh and the
+// stale-shell crash becomes structurally impossible. Offline browsing is
+// intentionally dropped — for an ops/admin tool, always-fresh reliability
+// matters far more, and the native Capacitor staff app handles its own
+// offline data separately.
+//
+// We keep the service worker registered ONLY so Web Push notifications
+// (WhatsApp message alerts in the admin) keep working — push requires an
+// active worker but does NOT require a fetch handler.
+//
+// The worker is disabled for the native Capacitor app (TMGStaffApp user
+// agent); registration is gated off in index.html for that case.
 
-const CACHE_STATIC  = 'tmg-static-v8';   // hashed JS/CSS/font bundles — cache-first
-const CACHE_DYNAMIC = 'tmg-dynamic-v8';  // pages & images — network-first
-
-const PRECACHE_PAGES = [
-  '/',
-  '/estimate',
-];
-
-// On install: warm the page cache and immediately activate
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_DYNAMIC)
-      .then(c => c.addAll(PRECACHE_PAGES))
-      .then(() => self.skipWaiting())
-  );
+// On install: activate immediately, don't wait for old worker to release.
+self.addEventListener('install', () => {
+  self.skipWaiting();
 });
 
-// On activate: drop all old caches, take control, and (on an UPDATE) force every
-// open window onto the fresh app shell.
+// On activate: delete EVERY cache left behind by the old caching workers, take
+// control, and reload all open windows so any page currently showing a stale
+// cached shell re-fetches fresh from the network under this no-cache worker.
 self.addEventListener('activate', e => {
-  const KEEP = [CACHE_STATIC, CACHE_DYNAMIC];
   e.waitUntil((async () => {
-    const keys = await caches.keys();
-    const stale = keys.filter(k => !KEEP.includes(k));
-    await Promise.all(stale.map(k => caches.delete(k)));
-    await self.clients.claim();
-
-    // If we just deleted caches from a previous version, this activation is an
-    // UPDATE (not a first install). Reload every open window so a pinned client
-    // — especially an installed iOS PWA — that was serving a stale app shell
-    // pointing at chunk files a new deploy removed recovers AUTOMATICALLY,
-    // without the user needing to clear data or reinstall. This is driven from
-    // the service worker on purpose: the browser always revalidates sw.js
-    // (bypassing the HTTP cache) on launch, so this code path reaches clients
-    // that an ordinary in-page reload could not. The new worker is network-first
-    // for HTML, so the forced navigation pulls a fresh index.html + bundle.
-    if (stale.length > 0) {
-      const windows = await self.clients.matchAll({ type: 'window' });
-      for (const client of windows) {
-        try { client.navigate(client.url); } catch (err) {}
-      }
+    // Did this device have caches from an OLD caching worker? If so this is an
+    // UPGRADE from a worker that may have stranded the page on a stale shell, so
+    // we reload windows below. On a brand-new first install there are no caches,
+    // so we skip the reload and don't disturb a first-time visitor.
+    let hadOldCaches = false;
+    try {
+      const keys = await caches.keys();
+      hadOldCaches = keys.length > 0;
+      await Promise.all(keys.map(k => caches.delete(k)));
+    } catch (err) {}
+    try {
+      await self.clients.claim();
+    } catch (err) {}
+    // Reload open windows so a pinned client that was serving a stale shell
+    // (esp. an installed iOS PWA) recovers automatically once this worker wins.
+    if (hadOldCaches) {
+      try {
+        const windows = await self.clients.matchAll({ type: 'window' });
+        for (const client of windows) {
+          try { client.navigate(client.url); } catch (err) {}
+        }
+      } catch (err) {}
     }
   })());
 });
 
-self.addEventListener('fetch', e => {
-  const { request } = e;
-  const url = new URL(request.url);
-
-  // 1. Never intercept API calls — always fresh from server
-  if (url.pathname.startsWith('/api/')) return;
-
-  // 2. Non-GET requests pass straight through
-  if (request.method !== 'GET') return;
-
-  // 3. Hashed asset bundles (/assets/*.js, /assets/*.css, /fonts/*.woff2)
-  //    These filenames contain a content hash — safe to cache forever (cache-first)
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/')) {
-    e.respondWith(
-      caches.open(CACHE_STATIC).then(async cache => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const fresh = await fetch(request);
-        if (fresh.ok) cache.put(request, fresh.clone());
-        return fresh;
-      })
-    );
-    return;
-  }
-
-  // 4. Work gallery images (/work/*.jpg) — cache-first, 7-day TTL
-  if (url.pathname.startsWith('/work/')) {
-    e.respondWith(
-      caches.open(CACHE_DYNAMIC).then(async cache => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const fresh = await fetch(request);
-        if (fresh.ok) cache.put(request, fresh.clone());
-        return fresh;
-      })
-    );
-    return;
-  }
-
-  // 5. Everything else (HTML pages, icons, manifest) — network-first, cache fallback
-  e.respondWith(
-    fetch(request)
-      .then(res => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE_DYNAMIC).then(c => c.put(request, clone));
-        }
-        return res;
-      })
-      .catch(() => caches.match(request))
-  );
-});
+// NOTE: there is deliberately NO `fetch` handler. The worker does not intercept
+// any request, so the browser always goes to the network (correctly cached by
+// HTTP headers). This is what guarantees the app can never be served stale.
 
 // ── Web Push — show notification when a WhatsApp message arrives ────────────
 self.addEventListener('push', e => {
