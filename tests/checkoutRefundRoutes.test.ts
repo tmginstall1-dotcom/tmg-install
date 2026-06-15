@@ -132,6 +132,7 @@ function isInfraError(err: any): string | null {
 
 test("HTTP: deposit checkout returns 409 TERMS_NOT_ACCEPTED before the terms are accepted", async (t) => {
   const { storage } = await import("../server/storage.ts");
+  const { depositPaidFallback } = await import("../shared/pricing.ts");
   const refNo = `TEST-HTTP-GATE-${Date.now()}`;
   let quoteId: number | undefined;
   let app: { server: Server; base: string } | undefined;
@@ -181,10 +182,95 @@ test("HTTP: deposit checkout returns 409 TERMS_NOT_ACCEPTED before the terms are
     assert.equal(ok.status, 200, "accepted deposit checkout must return 200");
     const okBody = await ok.json();
     assert.equal(okBody.url, STUB_STRIPE_URL, "successful checkout must return the Stripe URL");
+
+    // The amount handed to Stripe must equal the expected deposit — not the full
+    // total. This $300 quote is at/above the full-payment threshold, so the route
+    // charges the stored $150 deposit. We assert against an independently-computed
+    // value from the shared helper so this test fails if either the route's
+    // depositPaidFallback call OR the helper itself drifts (e.g. wrong percentage,
+    // or charging the full total instead of the deposit).
+    const expectedDeposit = depositPaidFallback(300, "150");
+    assert.equal(expectedDeposit, 150, "expected deposit for this fixture is $150");
+    assert.equal(
+      lastStripeAmountSGD(),
+      expectedDeposit,
+      "Stripe must be charged the deposit amount, not the full total",
+    );
   } catch (err: any) {
     const infra = isInfraError(err);
     if (infra) {
       t.skip(`DB not migrated/reachable for HTTP gate test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
+test("HTTP: deposit checkout for an under-threshold job charges the FULL total (paid up front)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const { depositPaidFallback } = await import("../shared/pricing.ts");
+  const refNo = `TEST-HTTP-DEPOSIT-FULL-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  // Under-threshold jobs (total < the full-payment threshold) are ALWAYS paid in
+  // full up front, so the "deposit" checkout must charge the entire total — never
+  // a fractional deposit, and never a stale stored split. $120 is below the
+  // threshold; depositPaidFallback ignores the stored $60 deposit and returns the
+  // full $120. We assert against the helper so route + helper stay in lockstep.
+  const TOTAL = 120;
+  const STALE_DEPOSIT = "60"; // deliberately wrong: must be ignored under threshold
+  const expectedCharge = depositPaidFallback(TOTAL, STALE_DEPOSIT);
+
+  try {
+    assert.equal(expectedCharge, TOTAL, "under-threshold deposit checkout must charge the full total");
+
+    const created = await storage.createQuote(
+      { name: "HTTP Deposit Full Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000009" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "7 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: String(TOTAL),
+        total: String(TOTAL),
+        depositAmount: STALE_DEPOSIT,
+        finalAmount: "60",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    // The deposit branch is gated on terms acceptance, so accept the current
+    // version first (mirrors the gate test above) before driving checkout.
+    await storage.recordTermsAcceptance(quoteId!, { version: 1, amount: TOTAL });
+
+    app = await startApp();
+    const ok = await fetch(`${app.base}/api/quotes/${quoteId}/checkout?type=deposit`);
+    assert.equal(ok.status, 200, "under-threshold deposit checkout must return 200");
+    const okBody = await ok.json();
+    assert.equal(okBody.url, STUB_STRIPE_URL, "successful checkout must return the Stripe URL");
+
+    assert.equal(
+      lastStripeAmountSGD(),
+      expectedCharge,
+      "Stripe must be charged the full total for an under-threshold job, not the stored deposit",
+    );
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP deposit-full test: ${infra}`);
       return;
     }
     throw err;
