@@ -1029,3 +1029,97 @@ test("HTTP: /pay/:ref?type=final is ungated and redirects to Stripe even without
     }
   }
 });
+
+// =============================================================================
+// Return-from-Stripe verification — the FINAL (balance) branch
+//
+// The deposit OK test above proves the verify route settles a *first* payment.
+// This is its financial mirror: a job that has already paid its deposit comes
+// back from Stripe after paying the remaining BALANCE. The route retrieves a
+// "paid" session whose metadata.type = "final" and must flip the quote to fully
+// settled — updateQuotePayment (server/storage.ts ~916) stamps finalPaidAt,
+// sets paymentStatus = 'paid_in_full', and auto-closes the case to 'closed'
+// (server/storage.ts ~976-998), then the route fires sendCaseClosedNotifications
+// (server/routes.ts ~4821). A regression here would leave a fully-paid job still
+// showing money owed, so we assert the persisted settlement, not just the 200.
+// =============================================================================
+test("HTTP: verify-payment settles the balance and closes the case for a paid final session (200)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-VP-FINAL-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    // Fixture: a deposit_paid quote at/above threshold with an outstanding
+    // balance — $300 total, $150 deposit already paid, $150 final still owed.
+    // depositPaidAt is stamped so this is unambiguously the *balance* return
+    // path (not a first payment).
+    const created = await storage.createQuote(
+      { name: "HTTP VerifyFinal Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000012" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "10 Route Rd, Singapore",
+        status: "deposit_paid",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "deposit_paid",
+        depositPaidAt: new Date(),
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Correct referenceNo, Stripe "paid", metadata bound to THIS quote, and
+    // type = "final" ⇒ the route records the balance payment and returns 200.
+    nextStripeSession = {
+      payment_status: "paid",
+      amount_total: 15000, // $150.00 balance
+      metadata: { quoteId: String(quoteId), type: "final" },
+    };
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: refNo }),
+    });
+    assert.equal(res.status, 200, "a valid, matching, paid final session must verify successfully");
+    const body = await res.json();
+    assert.equal(body.status, "ok");
+
+    // The crux: the job must now be fully settled — paid_in_full, the case
+    // auto-closed, and the final-paid timestamp stamped — both in the returned
+    // payload and when re-read from storage. This is the regression the task
+    // guards against: a fully-paid job that still shows money owed.
+    assert.equal(body.quote?.paymentStatus, "paid_in_full", "the returned quote must be paid_in_full");
+    assert.equal(body.quote?.status, "closed", "the returned quote must be auto-closed after final payment");
+    assert.ok(body.quote?.finalPaidAt, "final_paid_at must be stamped on the returned quote");
+
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(after?.paymentStatus, "paid_in_full", "the persisted quote must be paid_in_full");
+    assert.equal(after?.status, "closed", "the persisted quote must be auto-closed");
+    assert.ok(after?.finalPaidAt, "final_paid_at must be stamped after a verified balance payment");
+    // The earlier deposit settlement must survive the final payment.
+    assert.ok(after?.depositPaidAt, "deposit_paid_at must remain stamped through the final payment");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP verify-final test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
