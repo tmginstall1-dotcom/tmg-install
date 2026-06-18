@@ -69,6 +69,9 @@ export type InvoicePdfData = {
   finalAmount: string;
   finalPaidAt: string | null;
   paidInFull: boolean;
+  // Interim partial payments (ledger) — rendered between the deposit and the
+  // closing balance so the installment breakdown matches the on-screen invoice.
+  payments?: { id: number; amount: string; method: string; note: string | null; paidAt: string | null }[];
   // ── Dispute-protection: scope / timing / surcharge presentation ──
   timingMode?: string | null;
   dismantleAt?: string | null;
@@ -502,6 +505,27 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
       doc.setFontSize(8.5);
     }
 
+    // Interim partial payments (ledger) — between deposit and closing balance,
+    // chronologically, so the PDF breakdown matches the on-screen invoice.
+    if (Array.isArray(data.payments)) {
+      for (const p of data.payments) {
+        doc.setTextColor(4, 120, 87);
+        doc.text("Payment - Paid", totalsX, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(money(p.amount), totalsRight, y, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        y += 4;
+        if (p.paidAt) {
+          doc.setTextColor(5, 150, 105);
+          doc.setFontSize(7);
+          const meth = p.method ? ` - ${String(p.method).replace("_", " ")}` : "";
+          doc.text(`on ${dt(p.paidAt, true)}${meth}`, totalsRight, y, { align: "right" });
+          y += 3.5;
+          doc.setFontSize(8.5);
+        }
+      }
+    }
+
     // Final balance line
     if (data.finalPaidAt) doc.setTextColor(4, 120, 87);
     else doc.setTextColor(107, 114, 128);
@@ -524,6 +548,14 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.setDrawColor(167, 243, 208);
     doc.line(totalsX, y, totalsRight, y);
     y += 5;
+    if (!isFullPayPdf) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(4, 120, 87);
+      doc.text("Total paid", totalsX, y);
+      doc.text(money(data.total), totalsRight, y, { align: "right" });
+      y += 5;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(6, 95, 70);

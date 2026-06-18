@@ -484,6 +484,25 @@ export default function Invoice() {
                       {data.depositPaidAt && (
                         <div className="text-[10px] text-emerald-600 text-right -mt-1">on {dt(data.depositPaidAt, true)}</div>
                       )}
+                      {/* Interim partial payments (ledger) shown chronologically
+                          between the deposit and the closing balance, so the
+                          customer sees the full installment breakdown. */}
+                      {Array.isArray(data.payments) && data.payments.map((p) => (
+                        <div key={p.id} data-testid={`invoice-payment-${p.id}`}>
+                          <div className="flex justify-between text-[12px] text-emerald-700">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Payment — Paid</span>
+                            </span>
+                            <span className="font-semibold">{money(p.amount)}</span>
+                          </div>
+                          {p.paidAt && (
+                            <div className="text-[10px] text-emerald-600 text-right -mt-1">
+                              on {dt(p.paidAt, true)}{p.method ? ` · ${String(p.method).replace("_", " ")}` : ""}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                       <div className={`flex justify-between text-[12px] ${data.finalPaidAt ? "text-emerald-700" : "text-gray-500"}`}>
                         <span className="flex items-center gap-1.5">
                           {data.finalPaidAt && <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -497,18 +516,10 @@ export default function Invoice() {
                     </>
                   )}
 
-                  {Array.isArray(data.payments) && data.payments.length > 0 && (
-                    <div className="pt-2 mt-2 border-t border-gray-200 space-y-1">
-                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Payments received</div>
-                      {data.payments.map((p) => (
-                        <div key={p.id} className="flex justify-between text-[12px] text-emerald-700" data-testid={`invoice-payment-${p.id}`}>
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{p.paidAt ? dt(p.paidAt, true) : ""}{p.method ? ` · ${String(p.method).replace("_", " ")}` : ""}</span>
-                          </span>
-                          <span className="font-semibold">{money(p.amount)}</span>
-                        </div>
-                      ))}
+                  {data.paidInFull && !requiresFullUpfront(Number(data.total)) && (
+                    <div className="flex justify-between text-[12px] text-emerald-700 pt-2 mt-1 border-t border-gray-200" data-testid="invoice-total-paid">
+                      <span>Total paid</span>
+                      <span className="font-semibold">{money(data.total)}</span>
                     </div>
                   )}
 

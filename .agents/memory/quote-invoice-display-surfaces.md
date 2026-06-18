@@ -25,3 +25,16 @@ treat Invoice.tsx + invoicePdf.ts as their own separate surface and check the em
 `totals()` call-site arg count. Keep totals total-preserving: store the full value in
 the existing column and only SPLIT the display (subtract the new portion from the parent
 line) so grand totals never change and legacy rows render unchanged.
+
+## Invoice installment breakdown (deposit + interim ledger + closing balance)
+The invoice "final balance" line must be NET of any interim partial payments in the
+quote_payments ledger, or installments double-count against a gross balance and the
+lines stop summing to the grand total. Pass ledgerPaidTotal as the 4th arg to
+`finalBalanceOutstanding(total, finalAmount, depositAmount, ledgerPaidTotal)` in
+buildInvoicePayload. Render ledger payments BETWEEN the deposit and final-balance lines
+on both Invoice.tsx and invoicePdf.ts.
+**Why:** a fully-paid 3-installment job showed only a lumped deposit + gross final
+balance; customer wanted each installment visible and adding up.
+**How to apply:** `getQuotePayments` returns rows DESC by paidAt, so sort the payload
+`payments` ascending before display or the breakdown reads newest-first. getQuote already
+eager-loads `quote.payments`, but buildInvoicePayload also fetches defensively.

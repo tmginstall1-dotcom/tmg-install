@@ -9149,12 +9149,24 @@ Respond directly — no JSON, just the message text.`,
     }
   });
 
-  function buildInvoicePayload(quote: any) {
+  async function buildInvoicePayload(quote: any) {
     const totalAmt = parseFloat(quote.total || "0");
     const depositAmt = depositPaidFallback(totalAmt, quote.depositAmount);
+    // Interim partial payments (ledger). getQuote() eager-loads these today,
+    // but fetch them defensively if a caller passes a quote without them.
+    const ledgerRows = Array.isArray((quote as any).payments)
+      ? (quote as any).payments
+      : await storage.getQuotePayments(quote.id);
     // Full-upfront (under-threshold) jobs have no final balance, even on stale
     // legacy rows — force 0 so the invoice matches the site-wide rule.
-    const finalAmt = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount);
+    // Net "final balance" actually settled at the closing step = the gross final
+    // balance minus any interim partial payments already recorded in the ledger.
+    // This makes a multi-installment invoice add up cleanly (deposit + each
+    // interim payment + closing balance = grand total) instead of double-counting
+    // the interim payments against a gross final-balance line.
+    const ledgerPaidTotal = ledgerRows
+      .reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0);
+    const finalAmt = finalBalanceOutstanding(totalAmt, quote.finalAmount, quote.depositAmount, ledgerPaidTotal);
     const paidInFull = !!quote.finalPaidAt
       || quote.paymentStatus === "paid_in_full"
       || quote.status === "final_paid"
@@ -9267,22 +9279,26 @@ Respond directly — no JSON, just the message text.`,
       refundDueByAt: (quote as any).refundDueByAt || null,
       refundCompletedAt: (quote as any).refundCompletedAt || null,
       // Partial-payment ledger breakdown + running balance
-      payments: ((quote as any).payments || []).map((p: any) => ({
-        id: p.id,
-        amount: String(p.amount || "0"),
-        method: p.method || "cash",
-        note: p.note || null,
-        paidAt: p.paidAt || p.createdAt || null,
-      })),
+      payments: [...ledgerRows]
+        .sort((a: any, b: any) => {
+          const ta = new Date(a.paidAt || a.createdAt || 0).getTime();
+          const tb = new Date(b.paidAt || b.createdAt || 0).getTime();
+          return ta - tb;
+        })
+        .map((p: any) => ({
+          id: p.id,
+          amount: String(p.amount || "0"),
+          method: p.method || "cash",
+          note: p.note || null,
+          paidAt: p.paidAt || p.createdAt || null,
+        })),
       amountPaid: (paidInFull
         ? totalAmt
-        : Math.min(totalAmt, (quote.depositPaidAt ? depositAmt : 0)
-            + ((quote as any).payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0))
+        : Math.min(totalAmt, (quote.depositPaidAt ? depositAmt : 0) + ledgerPaidTotal)
       ).toFixed(2),
       balanceDue: (paidInFull
         ? 0
-        : Math.max(0, totalAmt - ((quote.depositPaidAt ? depositAmt : 0)
-            + ((quote as any).payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount || "0") || 0), 0)))
+        : Math.max(0, totalAmt - ((quote.depositPaidAt ? depositAmt : 0) + ledgerPaidTotal))
       ).toFixed(2),
     };
   }
@@ -9338,7 +9354,7 @@ Respond directly — no JSON, just the message text.`,
       if (!paidInFull) {
         return res.status(403).json({ message: "Invoice is only available once payment is complete." });
       }
-      res.json(buildInvoicePayload(quote));
+      res.json(await buildInvoicePayload(quote));
     } catch (err: any) {
       console.error("[Invoice] public fetch error:", err);
       res.status(500).json({ message: err?.message || "Failed to load invoice" });
@@ -9368,7 +9384,7 @@ Respond directly — no JSON, just the message text.`,
         });
       }
 
-      const payload = buildInvoicePayload(quote);
+      const payload = await buildInvoicePayload(quote);
       const viewUrl  = `${APP_URL}/invoice/${payload.referenceNo}`;
       const printUrl = `${APP_URL}/invoice/${payload.referenceNo}?print=1`;
 
