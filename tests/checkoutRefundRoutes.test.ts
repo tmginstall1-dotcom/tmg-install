@@ -803,6 +803,94 @@ test("HTTP: verify-payment rejects a paid session whose metadata.quoteId points 
   }
 });
 
+test("HTTP: verify-payment rejects a session that was never paid and leaves the quote unpaid (400)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-VP-UNPAID-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  try {
+    // Fixture mirrors a real deposit-requested quote that has NOT been paid.
+    const created = await storage.createQuote(
+      { name: "HTTP VerifyUnpaid Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000013" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "11 Route Rd, Singapore",
+        status: "deposit_requested",
+        subtotal: "300",
+        total: "300",
+        depositAmount: "150",
+        finalAmount: "150",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Ownership passes (correct referenceNo) and the session is bound to THIS
+    // quote, but Stripe reports payment_status = "unpaid" (the customer
+    // abandoned or failed checkout). The route's Stripe-truth guard must refuse
+    // to settle: 400 "Payment not completed", and the quote must stay unpaid.
+    nextStripeSession = {
+      payment_status: "unpaid",
+      amount_total: 15000,
+      metadata: { quoteId: String(quoteId), type: "deposit" },
+    };
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: refNo }),
+    });
+    assert.equal(res.status, 400, "an unpaid Stripe session must not settle the quote");
+    const body = await res.json();
+    assert.match(body.message, /not completed/i, "400 must explain the payment was not completed");
+
+    // The crux: an unpaid session must leave the quote untouched — no payment
+    // recorded, no deposit timestamp stamped.
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(after?.paymentStatus, "unpaid", "an unpaid session must not change payment status");
+    assert.equal(after?.depositPaidAt ?? null, null, "an unpaid session must not stamp deposit_paid_at");
+
+    // A "no_payment_required" session must be rejected the same way — only a
+    // genuinely "paid" session may settle a quote.
+    nextStripeSession = {
+      payment_status: "no_payment_required",
+      amount_total: 0,
+      metadata: { quoteId: String(quoteId), type: "deposit" },
+    };
+    const res2 = await fetch(`${app.base}/api/quotes/${quoteId}/verify-payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "cs_test_stub", referenceNo: refNo }),
+    });
+    assert.equal(res2.status, 400, "a no_payment_required session must not settle the quote");
+
+    const after2 = await storage.getQuote(quoteId!);
+    assert.equal(after2?.paymentStatus, "unpaid", "a no_payment_required session must not change payment status");
+    assert.equal(after2?.depositPaidAt ?? null, null, "a no_payment_required session must not stamp deposit_paid_at");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP verify-unpaid test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});
+
 test("HTTP: verify-payment flips the quote to deposit_paid for a valid, matching, paid session (200)", async (t) => {
   const { storage } = await import("../server/storage.ts");
   const refNo = `TEST-HTTP-VP-OK-${Date.now()}`;
