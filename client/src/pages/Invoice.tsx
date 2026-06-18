@@ -55,7 +55,10 @@ type InvoicePayload = {
   transportFee: string;
   volumetricFee?: string;
   discount: string;
+  discountLabel?: string;
+  adjustment?: string;
   secondDayFee?: string;
+  secondDayFeeAdjusted?: boolean;
   secondDayHours?: string;
   secondDayCrewSize?: number;
   total: string;
@@ -429,14 +432,14 @@ export default function Invoice() {
                     </div>
                   )}
                   {Number(data.discount || 0) > 0 && (
-                    <div className="flex justify-between text-red-600">
-                      <span>Discount</span>
+                    <div className="flex justify-between text-red-600" data-testid="invoice-discount">
+                      <span>{data.discountLabel || "Discount"}</span>
                       <span className="font-medium">− {money(data.discount)}</span>
                     </div>
                   )}
                   {Number(data.secondDayFee || 0) > 0 && (
                     <div className="flex justify-between text-gray-700">
-                      <span>Second-day continuation{Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayCrewSize) || 2} men × ${Number(data.secondDayHours)}h)` : ""}</span>
+                      <span>Second-day continuation{!data.secondDayFeeAdjusted && Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayCrewSize) || 2} men × ${Number(data.secondDayHours)}h)` : ""}</span>
                       <span className="font-medium">{money(data.secondDayFee)}</span>
                     </div>
                   )}
@@ -450,6 +453,12 @@ export default function Invoice() {
                     <div className="flex justify-between text-gray-700" data-testid="invoice-after-office-surcharge">
                       <span>After-office surcharge</span>
                       <span className="font-medium">{money(data.afterOfficeSurchargeAmount)}</span>
+                    </div>
+                  )}
+                  {Math.abs(Number(data.adjustment || 0)) >= 0.01 && (
+                    <div className={`flex justify-between ${Number(data.adjustment) < 0 ? "text-red-600" : "text-gray-700"}`} data-testid="invoice-adjustment">
+                      <span>Adjustment</span>
+                      <span className="font-medium">{Number(data.adjustment) < 0 ? "− " : ""}{money(Math.abs(Number(data.adjustment)))}</span>
                     </div>
                   )}
                   <div className="flex justify-between pt-2 mt-1 border-t-2 border-gray-900 font-black text-base text-gray-900">

@@ -9212,6 +9212,55 @@ Respond directly — no JSON, just the message text.`,
     const billingCompanyUen  = (quote as any).billingCompanyUen  || cust.companyUen  || null;
     const poNumber = (quote as any).poNumber || null;
 
+    // ── Invoice reconciliation ───────────────────────────────────────────────
+    // A paid invoice is a RECEIPT: its line items must add up to the grand total
+    // the customer actually paid. Two things can otherwise break that:
+    //   1) Discounts live across four columns (the legacy `discount`, promo,
+    //      goodwill and loyalty); the invoice must sum them all into one line or
+    //      an applied discount silently disappears from the breakdown.
+    //   2) The second-day-continuation fee is time-based and can drift AFTER the
+    //      job is locked and paid (e.g. on-site hours edited later), so a live
+    //      recompute no longer matches the already-paid total. We therefore
+    //      derive the second-day line from the paid total so the breakdown always
+    //      reconciles to what was charged, and surface any remaining gap as an
+    //      explicit adjustment line.
+    const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+    const invTotalNum = parseFloat(String(quote.total || "0")) || 0;
+    const invSubtotalNum = parseFloat(String(quote.subtotal || quote.total || "0")) || 0;
+    const invTransportNum = parseFloat(String((quote as any).transportFee || "0")) || 0;
+    const invAdditionalTripNum = parseFloat(String((quote as any).additionalTripCharge || "0")) || 0;
+    const invAfterOfficeNum =
+      (!(quote as any).afterOfficeWaived && (quote as any).afterOfficeSurchargeApplied)
+        ? (parseFloat(String((quote as any).afterOfficeSurchargeAmount || "0")) || 0)
+        : 0;
+    const discountTotal = r2(
+      (parseFloat(String(quote.discount || "0")) || 0)
+      + (parseFloat(String((quote as any).promoDiscount || "0")) || 0)
+      + (parseFloat(String((quote as any).goodwillDiscount || "0")) || 0)
+      + (parseFloat(String((quote as any).loyaltyDiscount || "0")) || 0)
+    );
+    const discountLabel = (quote as any).promoCode
+      ? `Discount (${(quote as any).promoCode})`
+      : ((quote as any).goodwillReason ? `Discount (${(quote as any).goodwillReason})` : "Discount");
+    const secondDayEnabled = !!(quote as any).secondDayContinuation;
+    const liveSecondDayFee = calcSecondDayContinuation(
+      secondDayEnabled, (quote as any).secondDayHours || 0, (quote as any).secondDayCrewSize,
+    ).fee;
+    // Components other than the second-day fee that feed the grand total.
+    const invBaseComponents = r2(
+      invSubtotalNum - discountTotal + invTransportNum + invAdditionalTripNum + invAfterOfficeNum,
+    );
+    const displaySecondDayFee = secondDayEnabled
+      ? r2(Math.max(0, invTotalNum - invBaseComponents))
+      : 0;
+    // Hide the "(N men × Hh)" qualifier when the derived fee no longer matches the
+    // raw hours-based calc, so the line never shows hours that don't price out.
+    const secondDayFeeAdjusted = Math.abs(displaySecondDayFee - liveSecondDayFee) >= 0.01;
+    // Anything still unreconciled (second-day disabled but total drifted, or the
+    // derived fee clamped at 0) becomes an explicit adjustment line.
+    let invoiceAdjustment = r2(invTotalNum - r2(invBaseComponents + displaySecondDayFee));
+    if (Math.abs(invoiceAdjustment) < 0.01) invoiceAdjustment = 0;
+
     return {
       referenceNo: quote.referenceNo,
       invoiceNo,
@@ -9240,11 +9289,14 @@ Respond directly — no JSON, just the message text.`,
       subtotal: String(quote.subtotal || quote.total || "0"),
       transportFee: String((quote as any).transportFee || "0"),
       volumetricFee: String((quote as any).volumetricFee || "0"),
-      discount: String(quote.discount || "0"),
+      discount: discountTotal.toFixed(2),
+      discountLabel,
+      adjustment: invoiceAdjustment.toFixed(2),
       secondDayContinuation: !!(quote as any).secondDayContinuation,
       secondDayHours: String((quote as any).secondDayHours || "0"),
       secondDayCrewSize: Number((quote as any).secondDayCrewSize) || PricingConfig.secondDay.defaultCrewSize,
-      secondDayFee: calcSecondDayContinuation(!!(quote as any).secondDayContinuation, (quote as any).secondDayHours || 0, (quote as any).secondDayCrewSize).fee.toFixed(2),
+      secondDayFee: displaySecondDayFee.toFixed(2),
+      secondDayFeeAdjusted,
       total: String(quote.total || "0"),
       depositAmount: depositAmt.toFixed(2),
       depositPaidAt: quote.depositPaidAt || null,

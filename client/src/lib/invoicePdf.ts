@@ -60,7 +60,10 @@ export type InvoicePdfData = {
   transportFee: string;
   volumetricFee?: string;
   discount: string;
+  discountLabel?: string;
+  adjustment?: string;
   secondDayFee?: string;
+  secondDayFeeAdjusted?: boolean;
   secondDayHours?: string;
   secondDayCrewSize?: number;
   total: string;
@@ -423,13 +426,13 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
   }
   if (Number(data.discount || 0) > 0) {
     doc.setTextColor(220, 38, 38); // red-600
-    doc.text("Discount", totalsX, y);
+    doc.text(data.discountLabel || "Discount", totalsX, y);
     doc.text(`- ${money(data.discount)}`, totalsRight, y, { align: "right" });
     y += 5;
   }
   if (Number(data.secondDayFee || 0) > 0) {
     doc.setTextColor(...bodyColor);
-    doc.text(`Second-day continuation${Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayCrewSize) || 2} men x ${Number(data.secondDayHours)}h)` : ""}`, totalsX, y);
+    doc.text(`Second-day continuation${!data.secondDayFeeAdjusted && Number(data.secondDayHours || 0) > 0 ? ` (${Number(data.secondDayCrewSize) || 2} men x ${Number(data.secondDayHours)}h)` : ""}`, totalsX, y);
     doc.text(money(data.secondDayFee), totalsRight, y, { align: "right" });
     y += 5;
   }
@@ -445,6 +448,14 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     doc.setTextColor(...bodyColor);
     doc.text("After-office surcharge", totalsX, y);
     doc.text(money(data.afterOfficeSurchargeAmount), totalsRight, y, { align: "right" });
+    y += 5;
+  }
+  // Reconciliation adjustment — keeps the breakdown summing to the paid total.
+  if (Math.abs(Number(data.adjustment || 0)) >= 0.01) {
+    const adj = Number(data.adjustment);
+    if (adj < 0) doc.setTextColor(220, 38, 38); else doc.setTextColor(...bodyColor);
+    doc.text("Adjustment", totalsX, y);
+    doc.text(`${adj < 0 ? "- " : ""}${money(Math.abs(adj))}`, totalsRight, y, { align: "right" });
     y += 5;
   }
 

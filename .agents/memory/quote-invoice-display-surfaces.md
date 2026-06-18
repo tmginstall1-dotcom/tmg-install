@@ -38,3 +38,23 @@ balance; customer wanted each installment visible and adding up.
 **How to apply:** `getQuotePayments` returns rows DESC by paidAt, so sort the payload
 `payments` ascending before display or the breakdown reads newest-first. getQuote already
 eager-loads `quote.payments`, but buildInvoicePayload also fetches defensively.
+
+## Invoice must reconcile to the PAID total, not the live recompute
+Discounts live in FOUR independent columns (discount, promoDiscount, goodwillDiscount,
+loyaltyDiscount). The invoice must SUM all four into one displayed discount + a label
+(promoCode else goodwillReason) — reading only `quote.discount` silently drops promo/
+goodwill discounts so the customer sees no discount line.
+Separately, time-based fees (esp. second-day continuation = returnFee + hours×rate×crew)
+recompute LIVE from current hours, but a job's already-PAID total was locked with the
+OLD hours; if hours drift after payment the live fee no longer matches the paid total
+and the breakdown stops summing.
+**Why:** a paid invoice showed no discount and lines that didn't add up — goodwill
+discount was invisible and second-day hours had drifted 1.5h→2.5h after payment.
+**How to apply:** in buildInvoicePayload, when continuation is enabled DERIVE the
+displayed second-day fee from the stored total: displaySecondDayFee = max(0, total −
+(subtotal − discountTotal + transport + additionalTrip + afterOffice)); set
+`secondDayFeeAdjusted` when it differs from the live calc (UI then hides the "N men × Hh"
+qualifier). Surface any leftover residual as an explicit `adjustment` line so the invoice
+ALWAYS sums to the paid total. Healthy non-drifted rows are unchanged (derived == live,
+adjustment 0). Mirror discountLabel + adjustment + secondDayFeeAdjusted in BOTH
+Invoice.tsx and invoicePdf.ts.
