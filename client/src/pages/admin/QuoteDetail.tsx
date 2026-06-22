@@ -1617,12 +1617,19 @@ export default function AdminQuoteDetail() {
  }
  .lh-addr strong { color: var(--ink-2); font-weight: 600; }
  .lh-addr .sep { color: var(--muted-2); padding: 0 4px; }
+ .lh-addr .nowrap { white-space: nowrap; }
 
- .lh-doc { text-align: right; min-width: 220px; }
+ .lh-doc { text-align: right; min-width: 210px; }
  .lh-doc .type {
  font-size: 22px; font-weight: 300; color: var(--ink);
  letter-spacing: 0.36em; text-transform: uppercase; line-height: 1;
  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+ white-space: nowrap;
+ }
+ /* Longer titles (e.g. "DELIVERY ORDER") get a tighter size so the right
+ column never grows wide enough to squeeze the address / phone line. */
+ .lh-doc .type.type-long {
+ font-size: 18px; letter-spacing: 0.18em;
  }
  .lh-doc .ref-block { margin-top: 10px; }
  .lh-doc .ref-value {
@@ -2020,11 +2027,12 @@ export default function AdminQuoteDetail() {
  <div class="lh-addr">
  <strong>UEN 202424156H</strong><span class="sep">·</span>160 Robinson Road #14-04,<br/>
  Singapore 068914<br/>
- +65 8088 0757<span class="sep">·</span>sales@tmginstall.com<span class="sep">·</span>tmginstall.com
+ <span class="nowrap">+65 8088 0757</span><br/>
+ <span class="nowrap">sales@tmginstall.com<span class="sep">·</span>tmginstall.com</span>
  </div>
  </div>
  <div class="lh-doc">
- <div class="type">${docType}</div>
+ <div class="type${docType === "DELIVERY ORDER" ? " type-long" : ""}">${docType}</div>
  <div class="ref-block">
  <div class="ref-value">${esc(docNo)}</div>
  ${(isInvoiceDoc || isDeliveryOrder) ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
