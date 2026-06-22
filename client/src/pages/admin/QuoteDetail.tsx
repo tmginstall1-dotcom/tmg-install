@@ -15,7 +15,8 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatItemDescription } from "@/lib/itemLabel";
-import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, computeMultiStopRelocationPrice, type SiteVisit, type MultiStopPriceResult } from "@shared/pricing";
+import { calcOvertimeCharge, calcSecondDayContinuation, requiresFullUpfront, PricingConfig, evaluateJobMargin, getJobSchedule, computeSiteTime, detectTimingFlags, computeMultiStopRelocationPrice, type SiteVisit, type MultiStopPriceResult } from "@shared/pricing";
+import { BusinessRulesDefaults } from "@shared/businessRules";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
 import { getQuoteTerms } from "@shared/terms";
 import { PaymentMessageDialog } from "@/components/shared/PaymentMessageDialog";
@@ -3142,6 +3143,25 @@ export default function AdminQuoteDetail() {
  </div>
  {summary.spansMultipleDays && (
  <p className="text-[11px] text-zinc-500 mt-2">Day-2 hours ({summary.secondDayHours.toFixed(2)}h) were auto-filled into Second-Day Continuation above when the crew checked out.</p>
+ )}
+ </div>
+ );
+ })()}
+ {(() => {
+ const flags = detectTimingFlags((quote.siteVisits as SiteVisit[] | undefined) || []);
+ if (!flags.sameDaySplit && !flags.afterOffice) return null;
+ return (
+ <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5" data-testid="section-timing-advisory">
+ <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">Timing detected — review charges</p>
+ {flags.sameDaySplit && (
+ <p className="text-xs text-amber-700" data-testid="text-advisory-split">
+ Same-day split: the crew left and returned with a gap of {flags.longestGapHours.toFixed(1)}h ({flags.extraTrips} extra trip{flags.extraTrips !== 1 ? 's' : ''}). Consider adding the ${BusinessRulesDefaults.additionalTripCharge.toFixed(2)} mobilisation charge per extra trip (Additional trip charge below).
+ </p>
+ )}
+ {flags.afterOffice && (
+ <p className="text-xs text-amber-700" data-testid="text-advisory-afteroffice">
+ After-office work detected — the crew worked past standard hours. Consider ticking the After-office surcharge below (+{BusinessRulesDefaults.afterOfficeSurchargePct}% of the total job price).
+ </p>
  )}
  </div>
  );

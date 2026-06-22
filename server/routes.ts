@@ -3433,7 +3433,8 @@ Category rules:
   app.get("/api/staff/quotes", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const quotes = await storage.getQuotesForStaff(req.session.userId);
-    res.json(quotes);
+    // Staff never see pricing — strip money fields from every job in the feed.
+    res.json(quotes.map(stripQuotePricingForStaff));
   });
 
   // -- Catalog Routes --
@@ -4297,6 +4298,46 @@ ${systemPrompt}` });
     }
   });
 
+  // Staff see a job operationally but never its pricing. Null out every money
+  // field (quote-level totals, per-item prices, the payment ledger) so a
+  // non-admin caller can run the job without seeing what the customer pays.
+  function stripQuotePricingForStaff(quote: any): any {
+    if (!quote || typeof quote !== "object") return quote;
+    const MONEY_FIELDS = [
+      "subtotal", "transportFee", "volumetricFee", "total", "discount",
+      "depositAmount", "finalAmount", "additionalCharge", "additionalChargeNote",
+      "promoDiscount", "loyaltyDiscount", "goodwillDiscount",
+      "afterOfficeSurchargeAmount", "additionalTripCharge", "termsAcceptedAmount",
+    ];
+    const out: any = { ...quote };
+    for (const f of MONEY_FIELDS) if (f in out) out[f] = null;
+    if (Array.isArray(out.items)) {
+      out.items = out.items.map((it: any) => {
+        if (!it || typeof it !== "object") return it;
+        const { unitPrice, subtotal, catalogItem, ...rest } = it;
+        let safeCatalog = catalogItem;
+        if (catalogItem && typeof catalogItem === "object") {
+          const { basePrice, ...catRest } = catalogItem;
+          safeCatalog = catRest;
+        }
+        return { ...rest, catalogItem: safeCatalog };
+      });
+    }
+    out.payments = [];
+    return out;
+  }
+
+  // Return a quote tailored to the caller: admins see full pricing, everyone
+  // else (assigned staff) gets the pricing-stripped view. Used by the staff
+  // job-action endpoints that echo the updated quote back to the client.
+  async function quoteForCaller(req: any, quote: any): Promise<any> {
+    const uid = req.session?.userId;
+    if (!uid) return quote;
+    const caller = await storage.getUserById(uid);
+    if (caller && caller.role === "admin") return quote;
+    return stripQuotePricingForStaff(quote);
+  }
+
   app.get(api.quotes.get.path, async (req, res) => {
     const id = parseInt(req.params.id);
     const quote = await storage.getQuote(id);
@@ -4311,6 +4352,7 @@ ${systemPrompt}` });
         const isAssignedToStaff = quote.assignedStaffId != null && teammateIds.includes(quote.assignedStaffId);
         const isAssignedToTeam = quote.assignedTeamId != null && caller.teamId != null && quote.assignedTeamId === caller.teamId;
         if (!isAssignedToStaff && !isAssignedToTeam) return res.status(403).json({ message: "Forbidden" });
+        return res.json(stripQuotePricingForStaff(quote));
       }
       return res.json(quote);
     }
@@ -5164,7 +5206,7 @@ ${systemPrompt}` });
       });
 
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      res.json(quote);
+      res.json(await quoteForCaller(req, quote));
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Internal error" });
@@ -5215,7 +5257,7 @@ ${systemPrompt}` });
         ? await storage.recordSiteArrival(id, caller.id)
         : await storage.recordSiteDeparture(id);
       if (!quote) return res.status(404).json({ message: "Quote not found" });
-      res.json(quote);
+      res.json(await quoteForCaller(req, quote));
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       console.error(`[SiteClock] Error for quote #${req.params.id}:`, err);
@@ -5325,10 +5367,10 @@ ${systemPrompt}` });
           console.error(`[Overtime] Stage-flow auto-calc error for quote #${id}:`, e);
         }
         const finalQuote = await storage.getQuote(id);
-        return res.json(finalQuote || quote);
+        return res.json(await quoteForCaller(req, finalQuote || quote));
       }
 
-      res.json(quote);
+      res.json(await quoteForCaller(req, quote));
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       console.error(`[Stage] Error for quote #${req.params.id}:`, err);
@@ -5415,7 +5457,7 @@ ${systemPrompt}` });
 
       // Re-fetch quote to include any overtime charge just applied
       const finalQuote = await storage.getQuote(id);
-      res.json(finalQuote || quote);
+      res.json(await quoteForCaller(req, finalQuote || quote));
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Internal error" });

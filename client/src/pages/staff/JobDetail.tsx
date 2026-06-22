@@ -642,6 +642,31 @@ export default function JobDetail() {
   const siteSummary = computeSiteTime(siteVisits);
   const onSite = siteSummary.hasOpenVisit;
   const fmtTime = (iso: string) => format(new Date(iso), "h:mma");
+
+  // Photos shared with the crew: the customer's submitted reference photo plus
+  // every photo already uploaded against this job (e.g. the morning dismantle
+  // shots, visible when the crew returns to reinstall). Pricing is never shown.
+  const customerPhoto: string | null = (job as any).detectionPhotoUrl || null;
+  const jobUpdatePhotos: string[] = (((job as any).updates as any[]) || [])
+    .flatMap((u: any) => {
+      const raw = u?.photoUrl;
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw;
+      const s = String(raw);
+      if (s.trim().startsWith("[")) {
+        try { return JSON.parse(s); } catch { return []; }
+      }
+      return [s];
+    })
+    .filter((x: any) => typeof x === "string" && x.length > 0);
+  const sharedPhotoCount = (customerPhoto ? 1 : 0) + jobUpdatePhotos.length;
+
+  // Split-job pause state: off site, but at least one session is already closed
+  // and the job isn't finished — i.e. the crew has stepped away mid-job and will
+  // return (e.g. dismantle done in the morning, reinstall later the same day).
+  const hasClosedSession = siteVisits.some((v: any) => v?.arrivedAt && v?.leftAt);
+  const isPausedMidJob = !onSite && hasClosedSession && !isDone;
+
   const handleSiteClock = (action: 'arrive' | 'leave') => {
     siteClockMutation.mutate(
       { id: job.id, action },
@@ -825,6 +850,58 @@ export default function JobDetail() {
           </div>
         </div>
 
+        {/* Photos shared with the crew (customer reference + prior job photos) */}
+        {sharedPhotoCount > 0 && (
+          <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b bg-secondary/30 flex items-center gap-2">
+              <ImagePlus className="w-4 h-4 text-muted-foreground" />
+              <p className="font-black text-sm">Photos for This Job</p>
+              <span className="ml-auto text-xs text-muted-foreground font-semibold">
+                {sharedPhotoCount} photo{sharedPhotoCount !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {customerPhoto && (
+                <div>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-2">From Customer</p>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPhoto(customerPhoto)}
+                    className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-border group"
+                    data-testid="img-customer-photo"
+                  >
+                    <img src={customerPhoto} alt="Customer submitted" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
+                </div>
+              )}
+              {jobUpdatePhotos.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-2">Job Photos</p>
+                  <div className="flex flex-wrap gap-2">
+                    {jobUpdatePhotos.map((url, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setPreviewPhoto(url)}
+                        className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-border group"
+                        data-testid={`img-job-photo-${i}`}
+                      >
+                        <img src={url} alt={`Job photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <ZoomIn className="w-3.5 h-3.5 text-white opacity-0 group-hover:opacity-100" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* On-Site Time Clock */}
         <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
           <div className="px-5 py-3 border-b bg-secondary/30 flex items-center gap-2">
@@ -856,6 +933,23 @@ export default function JobDetail() {
                 <><LogIn className="w-5 h-5" /> Arrived On Site</>
               )}
             </button>
+
+            {isPausedMidJob && (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-start gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 leading-snug">
+                  Paused — you're off site. When you come back (for example, to reinstall later today), tap <strong>Arrived On Site</strong> and your return is recorded as a new session.
+                </p>
+              </div>
+            )}
+            {onSite && (
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3 flex items-start gap-2">
+                <Timer className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 leading-snug">
+                  Need to split the job (e.g. dismantle now, reinstall later)? Tap <strong>Going Off Site</strong> to pause — you can clock back in when you return.
+                </p>
+              </div>
+            )}
 
             {siteSummary.days.length > 0 ? (
               <div className="space-y-3">

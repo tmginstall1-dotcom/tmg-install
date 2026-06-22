@@ -115,6 +115,15 @@ export const PricingConfig = {
     defaultCrewSize: 2,        // standard van crew = 2 movers; admin can raise this per job for bigger teams
     hourlyRate: 100,           // legacy effective 2-man rate (perPersonHourlyRate × defaultCrewSize) — kept for back-compat
   },
+  splitJob: {
+    // Same-day split timing — e.g. dismantle in the morning, reinstall in the
+    // evening. If the gap between two on-site sessions on the SAME Singapore day
+    // is longer than this, the crew effectively makes a second trip, so one
+    // standard mobilisation fee (callout.fee = $39.90) is added per extra trip.
+    // Second-day continuation (the next calendar day) is handled separately above
+    // at the higher $120 re-mobilisation rate.
+    sameDayGapHours: 3,
+  },
   // --------------------------------------------------------------------------
   // Cost-floor / margin guard — the "never lose money" safety net.
   // --------------------------------------------------------------------------
@@ -586,6 +595,91 @@ export function computeSiteTime(visits?: SiteVisit[] | null): SiteTimeSummary {
   const totalHours = round2(days.reduce((s, d) => s + d.hours, 0));
 
   return { days, day1Hours, secondDayHours, totalHours, hasOpenVisit, spansMultipleDays: days.length > 1 };
+}
+
+/** Minutes since Singapore midnight for an ISO instant. */
+function sgMinutesOfDay(iso: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SITE_TZ, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(iso));
+  const h = Number(parts.find(p => p.type === "hour")?.value || "0");
+  const m = Number(parts.find(p => p.type === "minute")?.value || "0");
+  return h * 60 + m;
+}
+
+/** Parse a "HH:mm" cutoff into minutes-since-midnight (defaults to 18:00 = 6pm). */
+function parseHHmm(s?: string | null): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || "").trim());
+  if (!m) return 18 * 60;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+export interface TimingFlags {
+  sameDaySplit: boolean;    // a same-day gap longer than the threshold between sessions
+  extraTrips: number;       // number of qualifying same-day gaps (each = one extra mobilisation)
+  longestGapHours: number;  // the largest qualifying same-day gap, in hours (0 if none)
+  afterOffice: boolean;     // any on-site session ran past the after-office cutoff
+  spansMultipleDays: boolean;
+  totalHours: number;
+  secondDayHours: number;
+}
+
+/**
+ * Inspect the on-site sessions and flag the situations that carry a surcharge so
+ * the admin can review and confirm them:
+ *   • a SAME-DAY split (two sessions on one SGT day with a gap > sameDayGapHours)
+ *     → the crew makes an extra mobilisation trip,
+ *   • work running past the after-office cutoff (default 18:00 / 6pm SGT).
+ * Pure/derived — it never mutates anything and never bills on its own.
+ */
+export function detectTimingFlags(
+  visits?: SiteVisit[] | null,
+  opts?: { sameDayGapHours?: number; afterOfficeCutoff?: string },
+): TimingFlags {
+  const gapHours = Number(opts?.sameDayGapHours ?? PricingConfig.splitJob.sameDayGapHours) || 3;
+  const cutoffMin = parseHHmm(opts?.afterOfficeCutoff);
+  const summary = computeSiteTime(visits);
+
+  // Closed sessions only, grouped by SGT calendar day, in start order.
+  const closed = (Array.isArray(visits) ? visits : [])
+    .filter(v => v && v.arrivedAt && v.leftAt)
+    .map(v => ({ start: new Date(v.arrivedAt).getTime(), end: new Date(v.leftAt!).getTime(), arrivedAt: v.arrivedAt, leftAt: v.leftAt! }))
+    .filter(v => v.end > v.start)
+    .sort((a, b) => a.start - b.start);
+
+  const byDay = new Map<string, typeof closed>();
+  for (const v of closed) {
+    const key = sgDateKey(v.arrivedAt);
+    const arr = byDay.get(key) || [];
+    arr.push(v);
+    byDay.set(key, arr);
+  }
+
+  let extraTrips = 0;
+  let longestGapMs = 0;
+  for (const arr of Array.from(byDay.values())) {
+    for (let i = 1; i < arr.length; i++) {
+      const gapMs = arr[i].start - arr[i - 1].end;
+      if (gapMs > gapHours * 3_600_000) {
+        extraTrips += 1;
+        if (gapMs > longestGapMs) longestGapMs = gapMs;
+      }
+    }
+  }
+
+  const afterOffice = closed.some(
+    v => sgMinutesOfDay(v.leftAt) > cutoffMin || sgMinutesOfDay(v.arrivedAt) >= cutoffMin,
+  );
+
+  return {
+    sameDaySplit: extraTrips > 0,
+    extraTrips,
+    longestGapHours: round2(longestGapMs / 3_600_000),
+    afterOffice,
+    spansMultipleDays: summary.spansMultipleDays,
+    totalHours: summary.totalHours,
+    secondDayHours: summary.secondDayHours,
+  };
 }
 
 /**

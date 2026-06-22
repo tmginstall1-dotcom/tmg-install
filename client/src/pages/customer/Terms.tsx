@@ -3,7 +3,20 @@ import { ArrowLeft } from "lucide-react";
 import { usePromoBar } from "@/hooks/use-promo-bar";
 import { useSEO } from "@/hooks/use-seo";
 import { PricingConfig } from "@shared/pricing";
+import { BusinessRulesDefaults } from "@shared/businessRules";
 import { QuoteTermsPolicy } from "@shared/terms";
+
+/** "18:00" → "6pm" for customer-facing copy. */
+function to12h(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
+  if (!m) return hhmm;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = h >= 12 ? "pm" : "am";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return min === 0 ? `${h}${ap}` : `${h}:${String(min).padStart(2, "0")}${ap}`;
+}
 
 const EFFECTIVE_DATE = "1 January 2026";
 const COMPANY = "The Moving Guy Pte Ltd";
@@ -23,6 +36,11 @@ const THRESHOLD = PricingConfig.deposit.fullPaymentThreshold;
 const FLOOR_LIFT = PricingConfig.floor.perFloorWithLift;
 const FLOOR_NOLIFT = PricingConfig.floor.perFloorNoLift;
 const VALIDITY = QuoteTermsPolicy.validityDays;
+const SPLIT_GAP = PricingConfig.splitJob.sameDayGapHours;
+const TRIP_CHARGE = BusinessRulesDefaults.additionalTripCharge;
+const AO_PCT = BusinessRulesDefaults.afterOfficeSurchargePct;
+const AO_CUTOFF = to12h(BusinessRulesDefaults.afterOfficeCutoff);
+const WORK_HOURS = `${to12h(BusinessRulesDefaults.workingHoursStart)}–${to12h(BusinessRulesDefaults.workingHoursEnd)}`;
 
 export default function Terms() {
   const { visible: promoVisible } = usePromoBar();
@@ -116,10 +134,23 @@ export default function Terms() {
                 Dismantle-and-reinstall items are priced per item and are not subject to hourly overtime.
               </li>
               <li>
+                <strong>Same-day split timing:</strong> Each booking covers one continuous on-site slot. If you ask us to
+                leave and return later the <strong>same day</strong> with a gap of more than <strong>{SPLIT_GAP} hours</strong>{" "}
+                between sessions (for example, dismantling first and coming back to reinstall), that counts as a second trip
+                and a mobilisation charge of <strong>${TRIP_CHARGE.toFixed(2)}</strong> per extra trip applies. We will
+                confirm any split timing with you in writing before the job.
+              </li>
+              <li>
                 <strong>Second-day continuation:</strong> Large or complex jobs may not finish in one day due to access delays
-                (lift congestion, loading-bay parking, items not ready, or scope larger than described). If a return visit is
-                required, it is charged at <strong>${SD_RETURN}</strong> (re-mobilisation) plus <strong>${SD_RATE} per mover,
-                per hour</strong> of actual time on the second day.
+                (lift congestion, loading-bay parking, items not ready, or scope larger than described). If the work
+                continues to the <strong>next calendar day</strong>, it is charged at <strong>${SD_RETURN}</strong>{" "}
+                (re-mobilisation) plus <strong>${SD_RATE} per mover, per hour</strong> of actual time on the second day.
+              </li>
+              <li>
+                <strong>After-office work:</strong> Standard working hours are <strong>{WORK_HOURS}</strong>. Work that
+                continues past <strong>{AO_CUTOFF}</strong> is treated as after-office and carries a{" "}
+                <strong>{AO_PCT}% surcharge on the total job price</strong>. Where after-office work is expected the surcharge
+                is shown on your quote; if it is waived this is confirmed in writing.
               </li>
               <li>
                 <strong>Floor & access surcharges:</strong> Pricing assumes the floor level and lift access stated at booking.

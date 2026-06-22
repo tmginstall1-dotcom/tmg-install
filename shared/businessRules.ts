@@ -30,8 +30,8 @@ export interface BusinessRules {
 
   // ── Working hours / after-office ───────────────────────────────────
   workingHoursStart: string;          // "09:00"
-  workingHoursEnd: string;            // "17:30" — standard end of working day
-  afterOfficeCutoff: string;          // "17:30" — work past this is after-office
+  workingHoursEnd: string;            // "18:00" — standard end of working day
+  afterOfficeCutoff: string;          // "18:00" (6pm) — work past this is after-office
   afterOfficeSurchargePct: number;    // 30 = +30% surcharge for after-office work
 
   // ── Scope / extra charges ──────────────────────────────────────────
@@ -56,15 +56,15 @@ export const BusinessRulesDefaults: BusinessRules = {
   refundProcessingDays: 1,
 
   workingHoursStart: "09:00",
-  workingHoursEnd: "17:30",
-  afterOfficeCutoff: "17:30",
+  workingHoursEnd: "18:00",
+  afterOfficeCutoff: "18:00",
   afterOfficeSurchargePct: 30,
 
-  additionalTripCharge: 80,
+  additionalTripCharge: 39.90,
   drillingPerHoleRate: 5,
 
   splitJobRuleText:
-    "Each booking covers ONE continuous on-site time slot. If you ask us to split the job into separate visits (for example, dismantling in the morning and reinstalling in the evening), that counts as two trips and an additional trip / manpower charge applies. Please confirm any split timing in writing before the job.",
+    "Each booking covers ONE continuous on-site time slot. If you ask us to split the job into separate visits — for example, dismantling first and returning later the same day to reinstall — each return counts as an extra trip and a mobilisation charge applies. Please confirm any split timing in writing before the job.",
   ownMoverDisclaimer:
     "If you arrange your own mover or transport for any part of the job, we are responsible only for the work we carry out (e.g. dismantling or reinstalling). We are not liable for items handled, carried, or transported by anyone who is not our crew.",
   siteConditionDisclaimer:
@@ -103,7 +103,7 @@ export const BusinessRuleFields: BusinessRuleField[] = [
   { key: "afterOfficeCutoff", label: "After-office cutoff", type: "time", group: "Working Hours", help: "Work continuing past this time is treated as after-office." },
   { key: "afterOfficeSurchargePct", label: "After-office surcharge %", type: "number", group: "Working Hours", help: "Extra percentage added for after-office work." },
 
-  { key: "additionalTripCharge", label: "Additional trip / manpower (S$)", type: "money", group: "Extra Charges", help: "Flat charge for an extra visit (e.g. split timing)." },
+  { key: "additionalTripCharge", label: "Same-day split trip / mobilisation (S$)", type: "money", group: "Extra Charges", help: "Flat mobilisation charge per extra same-day trip (e.g. dismantle, then return after a gap of 3+ hours to reinstall). Defaults to the $39.90 callout fee." },
   { key: "drillingPerHoleRate", label: "Drilling per hole (S$)", type: "money", group: "Extra Charges" },
 
   { key: "splitJobRuleText", label: "Split-timing rule", type: "textarea", group: "Disclaimers" },
@@ -170,6 +170,18 @@ function money(n: number): string {
   return `$${Number(n).toFixed(Number.isInteger(n) ? 0 : 2)}`;
 }
 
+/** Format a "HH:mm" 24-hour time as a friendly 12-hour label, e.g. "18:00" → "6pm". */
+function to12h(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
+  if (!m) return hhmm;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = h >= 12 ? "pm" : "am";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return min === 0 ? `${h}${ap}` : `${h}:${String(min).padStart(2, "0")}${ap}`;
+}
+
 /** After-office surcharge amount for a given base total (rounded to cents). */
 export function afterOfficeSurchargeAmount(rules: BusinessRules, baseTotal: number): number {
   const base = Number(baseTotal) || 0;
@@ -196,11 +208,15 @@ export function getBusinessPolicyClauses(rules: BusinessRules): PolicyClause[] {
     },
     {
       title: "One continuous slot vs split timing",
-      body: rules.splitJobRuleText,
+      body: `${rules.splitJobRuleText} A same-day return with a gap of more than ${PricingConfig.splitJob.sameDayGapHours} hours between sessions is charged as one extra trip at ${money(rules.additionalTripCharge)} per trip (the standard mobilisation fee). If the work instead continues to the next calendar day, a ${money(PricingConfig.secondDay.returnFee)} second-day continuation fee applies, plus ${money(PricingConfig.secondDay.perPersonHourlyRate)} per crew member, per hour for the actual time on the second day.`,
+    },
+    {
+      title: "Included on-site time & overtime",
+      body: `Your price includes the scheduled on-site time shown on your quote. If the job runs beyond that included time — whether at your request or due to on-site conditions — the additional time is charged at ${money(PricingConfig.overtime.perPersonHourlyRate)} per crew member, per hour.`,
     },
     {
       title: "After-office work",
-      body: `Standard working hours are ${rules.workingHoursStart}–${rules.workingHoursEnd}. Work that continues past ${rules.afterOfficeCutoff} is treated as after-office and carries a ${rules.afterOfficeSurchargePct}% surcharge. Where after-office work is expected, the surcharge is shown on your quote; if it is waived this is confirmed in writing.`,
+      body: `Standard working hours are ${to12h(rules.workingHoursStart)}–${to12h(rules.workingHoursEnd)}. Work that continues past ${to12h(rules.afterOfficeCutoff)} is treated as after-office and carries a ${rules.afterOfficeSurchargePct}% surcharge on the total job price. Where after-office work is expected, the surcharge is shown on your quote; if it is waived this is confirmed in writing.`,
     },
     {
       title: "Deposit & acceptance",
@@ -268,12 +284,14 @@ export function quickReplyPlaceholders(rules: BusinessRules): Record<string, str
     deposit_pct: `${Math.round(rules.depositPct * 100)}%`,
     full_payment_threshold: money2(rules.fullPaymentThreshold),
     cancellation_window: `${rules.cancellationWindowHours} hours`,
-    after_office_cutoff: rules.afterOfficeCutoff,
+    after_office_cutoff: to12h(rules.afterOfficeCutoff),
     after_office_pct: `${rules.afterOfficeSurchargePct}%`,
     refund_days: `${rules.refundProcessingDays} business day${rules.refundProcessingDays === 1 ? "" : "s"}`,
     trip_charge: money2(rules.additionalTripCharge),
     drilling_rate: money2(rules.drillingPerHoleRate),
-    working_hours: `${rules.workingHoursStart}–${rules.workingHoursEnd}`,
+    working_hours: `${to12h(rules.workingHoursStart)}–${to12h(rules.workingHoursEnd)}`,
+    split_gap: `${PricingConfig.splitJob.sameDayGapHours} hours`,
+    overtime_rate: money2(PricingConfig.overtime.perPersonHourlyRate),
   };
 }
 
@@ -315,7 +333,7 @@ export const DEFAULT_QUICK_REPLIES: DefaultQuickReply[] = [
     title: "Split-timing extra charge",
     category: "scope",
     sortOrder: 30,
-    body: "Splitting the job into a morning dismantle and a later reinstall means our crew makes two separate trips, so an additional trip charge of {{trip_charge}} applies. We'll confirm this in writing before we proceed.",
+    body: "Splitting the job so we return later the same day (a gap of more than {{split_gap}}) means our crew makes a second trip, so a mobilisation charge of {{trip_charge}} per extra trip applies. We'll confirm this in writing before we proceed.",
   },
   {
     slug: "after-office-surcharge",
