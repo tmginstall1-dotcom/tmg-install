@@ -1777,6 +1777,16 @@ export async function registerRoutes(
     res.json(staff);
   });
 
+  // Admin: saved customer directory (deduped by phone). Used to look up a
+  // returning customer and pre-fill a new job/invoice without re-typing.
+  app.get("/api/admin/customers", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const customers = await storage.getCustomersDirectory();
+    res.json(customers);
+  });
+
   // Create staff member (admin only)
   app.post("/api/admin/staff", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });

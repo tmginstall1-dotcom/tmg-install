@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ import {
   User, MapPin, Calendar, Clock, Package,
   Plus, Trash2, CheckCircle2, ExternalLink, Sparkles, Upload,
   X, FileImage, AlertCircle, ChevronDown, ChevronUp,
-  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle, Route,
+  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle, Route, Search,
 } from "lucide-react";
 import { computeMultiStopRelocationPrice, type MultiStopPriceResult } from "@shared/pricing";
 import type { QuoteStop } from "@shared/schema";
@@ -68,6 +68,18 @@ const makeStop = (kind: "pickup" | "dropoff"): StopForm => ({
 });
 
 type StaffMember = { id: number; name: string; role: string };
+
+type SavedCustomer = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  companyName: string | null;
+  companyUen: string | null;
+  billingAddress: string | null;
+  jobCount: number;
+  lastJobAt: string | null;
+};
 
 type ScanResult = {
   items: { name: string; quantity: number; unitPrice: string; serviceType: string; remark?: string | null }[];
@@ -129,6 +141,10 @@ export function CreateJobModal({ open, onClose }: Props) {
   const [customerPhone, setCustomerPhone]     = useState("");
   const [customerEmail, setCustomerEmail]     = useState("");
 
+  // Saved-customer lookup (re-use a returning customer without re-typing)
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [customerSearch, setCustomerSearch]         = useState("");
+
   // Address state
   const [serviceAddress, setServiceAddress]   = useState("");
   const [dropoffAddress, setDropoffAddress]   = useState("");
@@ -189,6 +205,40 @@ export function CreateJobModal({ open, onClose }: Props) {
     queryKey: ["/api/staff"],
     enabled: open,
   });
+
+  // Saved customers — fetched when the modal opens so the admin can pick a
+  // returning customer and pre-fill their details instead of re-typing.
+  const { data: savedCustomers = [], isLoading: customersLoading } = useQuery<SavedCustomer[]>({
+    queryKey: ["/api/admin/customers"],
+    enabled: open,
+  });
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return savedCustomers.slice(0, 8);
+    return savedCustomers
+      .filter(c =>
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.toLowerCase().includes(q)) ||
+        (c.email && !c.email.endsWith("@tmginstall.com") && c.email.toLowerCase().includes(q)) ||
+        (c.companyName && c.companyName.toLowerCase().includes(q))
+      )
+      .slice(0, 15);
+  }, [savedCustomers, customerSearch]);
+
+  const fillFromSavedCustomer = (c: SavedCustomer) => {
+    setCustomerName(c.name || "");
+    // Strip the +65 country code so the value fits the local phone input.
+    let p = (c.phone || "").replace(/\s+/g, "");
+    if (p.startsWith("+65")) p = p.slice(3);
+    else if (p.startsWith("65") && p.length === 10) p = p.slice(2);
+    setCustomerPhone(p);
+    // Skip placeholder emails auto-generated for WhatsApp-only customers.
+    setCustomerEmail(c.email && !c.email.endsWith("@tmginstall.com") ? c.email : "");
+    setCustomerPickerOpen(false);
+    setCustomerSearch("");
+    toast({ title: "Customer loaded", description: `${c.name}'s saved details have been filled in.` });
+  };
 
   const itemsTotal = items.reduce((sum, item) => {
     return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
@@ -454,6 +504,7 @@ export function CreateJobModal({ open, onClose }: Props) {
   const resetForm = () => {
     setJobType("standard");
     setCustomerName(""); setCustomerPhone(""); setCustomerEmail("");
+    setCustomerPickerOpen(false); setCustomerSearch("");
     setServiceAddress(""); setDropoffAddress("");
     setStops([makeStop("pickup"), makeStop("dropoff")]);
     setTotalVolumeM3(""); setDistanceKm(null); setCalcResult(null); setCalcError(null); setCalcLoading(false);
@@ -795,6 +846,66 @@ export function CreateJobModal({ open, onClose }: Props) {
             {/* ── Customer ── */}
             <Section icon={<User className="w-4 h-4 text-zinc-500" />} title="Customer">
               <div className="space-y-3">
+                {/* Saved-customer lookup — re-use a returning customer */}
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50/70">
+                  <button
+                    type="button"
+                    data-testid="button-toggle-saved-customers"
+                    onClick={() => setCustomerPickerOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5" /> Use a saved customer
+                    </span>
+                    {customerPickerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {customerPickerOpen && (
+                    <div className="px-3 pb-3">
+                      <Input
+                        data-testid="input-customer-search"
+                        value={customerSearch}
+                        onChange={e => setCustomerSearch(e.target.value)}
+                        placeholder="Search by name, phone, email or company…"
+                        className="h-9 text-sm border-zinc-300 bg-white"
+                        autoFocus
+                      />
+                      <div className="mt-2 max-h-56 overflow-y-auto rounded-md border border-zinc-200 bg-white divide-y divide-zinc-100">
+                        {customersLoading ? (
+                          <p className="px-3 py-3 text-xs text-zinc-400">Loading saved customers…</p>
+                        ) : filteredCustomers.length === 0 ? (
+                          <p className="px-3 py-3 text-xs text-zinc-400" data-testid="text-no-customers">
+                            {customerSearch.trim() ? "No matching customers." : "No saved customers yet."}
+                          </p>
+                        ) : (
+                          filteredCustomers.map(c => (
+                            <button
+                              type="button"
+                              key={c.id}
+                              data-testid={`button-select-customer-${c.id}`}
+                              onClick={() => fillFromSavedCustomer(c)}
+                              className="w-full text-left px-3 py-2 hover:bg-zinc-50 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium text-zinc-800 truncate">{c.name}</span>
+                                {c.jobCount > 0 && (
+                                  <span className="text-[10px] text-zinc-400 whitespace-nowrap">
+                                    {c.jobCount} job{c.jobCount !== 1 ? "s" : ""}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-zinc-500 truncate">
+                                {c.phone}
+                                {c.companyName ? ` · ${c.companyName}` : ""}
+                                {c.email && !c.email.endsWith("@tmginstall.com") ? ` · ${c.email}` : ""}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-zinc-500 mb-1.5 block">Name *</Label>

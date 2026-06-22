@@ -283,6 +283,65 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).where(eq(users.role, 'staff'));
   }
 
+  // Saved customers for admin re-use — deduped by phone (one person can have
+  // many customer rows, one per quote), keeping the most recent details and
+  // annotated with how many jobs they've had and when their last one was.
+  async getCustomersDirectory() {
+    // Canonicalize the phone so format variants of the SAME number collapse to
+    // one entry: keep digits only, then drop a leading "65" SG country code on
+    // a 10-digit number (so "+65 9123 4567", "6591234567" and "91234567" all
+    // map to "91234567"). This key drives both the dedup and the job stats.
+    const rows = await db.execute(sql`
+      WITH base AS (
+        SELECT c.*,
+               CASE
+                 WHEN length(regexp_replace(c.phone, '[^0-9]', '', 'g')) = 10
+                      AND left(regexp_replace(c.phone, '[^0-9]', '', 'g'), 2) = '65'
+                 THEN right(regexp_replace(c.phone, '[^0-9]', '', 'g'), 8)
+                 ELSE regexp_replace(c.phone, '[^0-9]', '', 'g')
+               END AS phone_key
+        FROM customers c
+        WHERE c.phone IS NOT NULL AND c.phone <> ''
+      ),
+      ranked AS (
+        SELECT b.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY b.phone_key
+                 ORDER BY b.created_at DESC NULLS LAST, b.id DESC
+               ) AS rn
+        FROM base b
+        WHERE b.phone_key <> ''
+      ),
+      stats AS (
+        SELECT b.phone_key AS pk,
+               COUNT(q.id)::int AS job_count,
+               MAX(q.created_at) AS last_job_at
+        FROM base b
+        LEFT JOIN quotes q ON q.customer_id = b.id
+        GROUP BY b.phone_key
+      )
+      SELECT r.id, r.name, r.email, r.phone,
+             r.company_name, r.company_uen, r.billing_address,
+             COALESCE(s.job_count, 0) AS job_count, s.last_job_at
+      FROM ranked r
+      LEFT JOIN stats s ON s.pk = r.phone_key
+      WHERE r.rn = 1
+      ORDER BY s.last_job_at DESC NULLS LAST, r.name ASC
+      LIMIT 1000
+    `);
+    return (rows.rows as any[]).map(r => ({
+      id: Number(r.id),
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      companyName: r.company_name ?? null,
+      companyUen: r.company_uen ?? null,
+      billingAddress: r.billing_address ?? null,
+      jobCount: Number(r.job_count ?? 0),
+      lastJobAt: r.last_job_at ? new Date(r.last_job_at) : null,
+    }));
+  }
+
   async createUser(user: InsertUser) {
     const [created] = await db.insert(users).values(user).returning();
     return created;
