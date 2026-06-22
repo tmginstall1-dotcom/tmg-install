@@ -28,5 +28,6 @@
 - [Prod stale-chunk crash](prod-stale-chunk-crash.md) — iOS PWA/Safari stuck on old shell after deploy; fix = push-only (no-fetch) SW + click-gated `/reset` repair link; deploy migration warning is a false alarm.
 - [Dispute-protection gating](dispute-protection-gating.md) — terms gate must block ALL payment paths (Stripe+PayNow); re-version on sent-but-unaccepted edits; require admin surcharge ack for split/after-office.
 - [Quote detail query-key](quote-query-key.md) — single-quote key is `['/api/quotes/:id', id]` (route pattern), NOT `['/api/quotes', id]`; wrong key leaves QuoteDetail panels stale after mutations.
+- [Admin print doc-types](admin-print-doctypes.md) — invoice/quote/job-order/delivery-order are ONE handlePrintQuote HTML template branched by docType; DO must hide ALL prices incl. the relocation on-site-time block.
 - [CSRF allowed-origins](csrf-allowed-origins.md) — add REPLIT_DOMAINS/REPLIT_DEV_DOMAIN to ALLOWED_ORIGINS or every POST 403s in the Replit preview/deploy env; GETs are exempt so they mask it.
 - [Admin shell crash scope](admin-shell-crash.md) — a render throw in AdminSidebar/BottomNav/Topbar crashes the whole admin area post-login (login page is fine); dev workflow has no tsc so missing-import ReferenceErrors ship.

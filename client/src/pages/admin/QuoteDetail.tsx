@@ -1410,7 +1410,7 @@ export default function AdminQuoteDetail() {
  const editSecondDay = calcSecondDayContinuation(!!editQuoteData.secondDayContinuation, editQuoteData.secondDayHours || 0, editQuoteData.secondDayCrewSize).fee;
  const editTotal = Math.max(0, editSubtotal - editPromoDiscount - editGoodwillDiscount + editTransport + editSecondDay);
 
- const handlePrintQuote = () => {
+ const handlePrintQuote = (forceDocType?: "DELIVERY ORDER") => {
  const q = quote;
  const items = (q.items || []) as any[];
  const services = (() => { try { return JSON.parse(q.selectedServices || "[]"); } catch { return []; } })();
@@ -1475,12 +1475,17 @@ export default function AdminQuoteDetail() {
  const isCommercialDoc = (q.invoiceType === "commercial");
  const PRE_BOOKING = ['submitted', 'under_review', 'approved', 'deposit_requested'];
  const COMPLETED = ['job_completed', 'completed', 'final_paid', 'closed', 'final_payment_requested', 'awaiting_final_payment'];
- let docType: "QUOTATION" | "JOB ORDER" | "TAX INVOICE";
+ let docType: "QUOTATION" | "JOB ORDER" | "TAX INVOICE" | "DELIVERY ORDER";
  if (isFullyPaid || COMPLETED.includes(q.status)) docType = "TAX INVOICE";
  else if (isCommercialDoc && !PRE_BOOKING.includes(q.status)) docType = "TAX INVOICE";
  else if (!PRE_BOOKING.includes(q.status)) docType = "JOB ORDER";
  else docType = "QUOTATION";
+ // A Delivery Order is an explicit, on-demand document the admin prints to get
+ // the customer's sign-off that the items / services were delivered and
+ // installed. It is a proof-of-delivery / scope doc — no prices, no payment.
+ if (forceDocType === "DELIVERY ORDER") docType = "DELIVERY ORDER";
  const isInvoiceDoc = docType === "TAX INVOICE";
+ const isDeliveryOrder = docType === "DELIVERY ORDER";
 
  // Human-friendly status label for the masthead meta row.
  const statusLabel = (() => {
@@ -1498,10 +1503,15 @@ export default function AdminQuoteDetail() {
  if (q.status === "cancelled") return "CANCELLED";
  return String(q.status || "—").toUpperCase().replace(/_/g, " ");
  })();
- const termsLabel = isInvoiceDoc ? "Net 30" : (docType === "JOB ORDER" ? (fullPayDoc ? "Paid in Full" : "50% Deposit Paid") : (fullPayDoc ? "Full Payment" : "50% Deposit"));
+ const termsLabel = isDeliveryOrder ? "Delivery & Acceptance" : isInvoiceDoc ? "Net 30" : (docType === "JOB ORDER" ? (fullPayDoc ? "Paid in Full" : "50% Deposit Paid") : (fullPayDoc ? "Full Payment" : "50% Deposit"));
  // Stable invoice number: TMG-MOJN5PS9 → INV-MOJN5PS9
  const refTail = String(q.referenceNo || "").replace(/^TMG-?/i, "");
  const invoiceNo = `INV-${refTail || q.id}`;
+ // Stable delivery-order number: TMG-MOJN5PS9 → DO-MOJN5PS9
+ const deliveryOrderNo = `DO-${refTail || q.id}`;
+ // The headline reference shown in the masthead / footer depends on the kind
+ // of document being printed.
+ const docNo = isInvoiceDoc ? invoiceNo : isDeliveryOrder ? deliveryOrderNo : q.referenceNo;
  const issuedDate = isFullyPaid && q.finalPaidAt
  ? new Date(q.finalPaidAt).toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" })
  : new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" });
@@ -2016,8 +2026,8 @@ export default function AdminQuoteDetail() {
  <div class="lh-doc">
  <div class="type">${docType}</div>
  <div class="ref-block">
- <div class="ref-value">${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</div>
- ${isInvoiceDoc ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
+ <div class="ref-value">${esc(docNo)}</div>
+ ${(isInvoiceDoc || isDeliveryOrder) ? `<div class="sub-ref">Job Ref · ${esc(q.referenceNo)}</div>` : ""}
  </div>
  <div class="meta-grid">
  <div class="k">Issued</div><div class="v">${esc(issuedDate)}</div>
@@ -2072,8 +2082,8 @@ export default function AdminQuoteDetail() {
  <tr>
  <th>Description</th>
  <th>Qty</th>
- <th>Unit Price (S$)</th>
- <th>Amount (S$)</th>
+ ${isDeliveryOrder ? "" : `<th>Unit Price (S$)</th>
+ <th>Amount (S$)</th>`}
  </tr>
  </thead>
  <tbody>
@@ -2085,14 +2095,20 @@ export default function AdminQuoteDetail() {
  ${item.remark ? `<div class="item-remark">${esc(item.remark)}</div>` : ""}
  </td>
  <td>${item.quantity}</td>
- <td>${Number(item.unitPrice || 0).toFixed(2)}</td>
- <td>${Number(item.subtotal || 0).toFixed(2)}</td>
+ ${isDeliveryOrder ? "" : `<td>${Number(item.unitPrice || 0).toFixed(2)}</td>
+ <td>${Number(item.subtotal || 0).toFixed(2)}</td>`}
  </tr>`).join("")
- : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:24px;font-style:italic;">No line items</td></tr>'
+ : `<tr><td colspan="${isDeliveryOrder ? 2 : 4}" style="text-align:center;color:#94a3b8;padding:24px;font-style:italic;">No line items</td></tr>`
  }
  </tbody>
  </table>
 
+ ${isDeliveryOrder ? `
+ <div style="margin-top:18px;border:1px solid #d1d5db;background:#fafafa;border-radius:4px;padding:12px 14px;">
+ <div style="font-size:8.5px;text-transform:uppercase;letter-spacing:0.28em;font-weight:700;color:#6b7280;">Delivery &amp; Installation Confirmation</div>
+ <div style="font-size:11px;color:#374151;line-height:1.6;margin-top:6px;">The items and services listed above have been delivered and installed at the service address. Please check the received scope against this list and sign below to acknowledge completion in good order.</div>
+ </div>
+ ` : `
  <div class="totals-wrap">
  <div class="totals">
  ${Number(q.discount || 0) > 0 ? `<div class="totals-row"><span class="k">Discount</span><span>−S$${Number(q.discount).toFixed(2)}</span></div>` : ""}
@@ -2154,9 +2170,10 @@ export default function AdminQuoteDetail() {
  <div class="qr-sub">UEN 202424156H</div>
  </div>
  </div>`}
+ `}
 
  <!-- Included on-site time (relocation quotes / job orders only) -->
- ${(!isInvoiceDoc && hasRelocation) ? `
+ ${(!isInvoiceDoc && !isDeliveryOrder && hasRelocation) ? `
  <div style="margin-top:18px;border:1px solid #e5e7eb;background:#f9fafb;border-radius:4px;padding:10px 12px;">
  <div style="font-size:11px;color:#374151;line-height:1.5;">
  <strong>Included on-site time:</strong> ${printSchedule.crewSize} mover${printSchedule.crewSize !== 1 ? "s" : ""} × ${fmtHrs(printSchedule.scheduledHours)} hour${fmtHrs(printSchedule.scheduledHours) === "1" ? "" : "s"} = <strong>${printManHours} man-hours</strong>.
@@ -2170,11 +2187,17 @@ export default function AdminQuoteDetail() {
  <div class="tnc">
  <h3>
  <span class="tnc-title">Terms &amp; Conditions</span>
- <span class="tnc-ref">${isInvoiceDoc ? "Invoice" : "Quotation"} <strong>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</strong>${isInvoiceDoc ? ` · Job ${esc(q.referenceNo)}` : ""}</span>
+ <span class="tnc-ref">${isInvoiceDoc ? "Invoice" : isDeliveryOrder ? "Delivery Order" : "Quotation"} <strong>${esc(docNo)}</strong>${(isInvoiceDoc || isDeliveryOrder) ? ` · Job ${esc(q.referenceNo)}` : ""}</span>
  <span class="tnc-link">Full version: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></span>
  </h3>
  <ol>
- ${isInvoiceDoc ? `
+ ${isDeliveryOrder ? `
+ <li>This Delivery Order confirms that the items and services listed above were delivered and installed at the stated service address.</li>
+ <li>Please inspect all items on delivery. By signing below, the customer acknowledges receipt and that the work was completed in good order.</li>
+ <li>Any defect or shortfall must be reported in writing within <strong>7 days</strong> of the delivery date shown above.</li>
+ <li>The Moving Guy Pte Ltd is not liable for pre-existing damage to furniture, walls, or fixtures.</li>
+ <li>This document is a delivery acknowledgement only — it is not a tax invoice or a receipt.</li>
+ ` : isInvoiceDoc ? `
  <li><strong>Payment Terms:</strong> Net 30 days from invoice date${isFullyPaid ? "" : ` — payment due by <strong>${esc(dueDate)}</strong>`}. Please quote the invoice number <strong>${esc(invoiceNo)}</strong> in the payment remarks.</li>
  <li>Late payments may incur a <strong>1.5% per month</strong> administrative charge on the outstanding balance.</li>
  <li>Goods and services described above have been delivered / completed as agreed. Any defect claim must be raised in writing within <strong>7 days</strong> of completion.</li>
@@ -2193,8 +2216,8 @@ export default function AdminQuoteDetail() {
 
  <div class="footer">
  <div>
- <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : "We appreciate the opportunity to quote for you."}</div>
- <div class="footer-ref">${isInvoiceDoc ? "Invoice" : "Quotation"} <strong>${esc(isInvoiceDoc ? invoiceNo : q.referenceNo)}</strong>${isInvoiceDoc ? ` · Job ${esc(q.referenceNo)}` : ""} · For ${esc(q.customer?.name || "—")} · Issued ${esc(issuedDate)}</div>
+ <div class="thanks">${isInvoiceDoc ? "Thank you for your business." : isDeliveryOrder ? "Thank you — please retain this for your records." : "We appreciate the opportunity to quote for you."}</div>
+ <div class="footer-ref">${isInvoiceDoc ? "Invoice" : isDeliveryOrder ? "Delivery Order" : "Quotation"} <strong>${esc(docNo)}</strong>${(isInvoiceDoc || isDeliveryOrder) ? ` · Job ${esc(q.referenceNo)}` : ""} · For ${esc(q.customer?.name || "—")} · Issued ${esc(issuedDate)}</div>
  <p>Generated ${esc(new Date().toLocaleDateString("en-SG", { year: "numeric", month: "long", day: "numeric" }))} · The Moving Guy Pte Ltd · UEN 202424156H · Vehicle GBM550L<br/>+65 8088 0757 · sales@tmginstall.com · <a href="https://tmginstall.com" target="_blank">tmginstall.com</a> · Terms: <a href="https://tmginstall.com/terms" target="_blank">tmginstall.com/terms</a></p>
  </div>
  <div class="sig-box">
@@ -2240,7 +2263,7 @@ export default function AdminQuoteDetail() {
  </div>` : `
  <div class="sig-line"></div>
  <div class="sig-label sig-label-center">
- <span class="sig-name">Customer</span>Signature &amp; Date
+ <span class="sig-name">${isDeliveryOrder ? "Received in good order by" : "Customer"}</span>${isDeliveryOrder ? "Name · Signature · Date" : "Signature &amp; Date"}
  </div>`}
  </div>
  </div>
@@ -2333,7 +2356,7 @@ export default function AdminQuoteDetail() {
  </button>
  )}
  <button
- onClick={handlePrintQuote}
+ onClick={() => handlePrintQuote()}
  data-testid="button-print-quote"
  title="Print / Download PDF"
  aria-label="Print"
@@ -2341,6 +2364,16 @@ export default function AdminQuoteDetail() {
  >
  <Printer className="w-4 h-4" />
  <span className="hidden sm:inline">Print</span>
+ </button>
+ <button
+ onClick={() => handlePrintQuote("DELIVERY ORDER")}
+ data-testid="button-delivery-order"
+ title="Print / Download Delivery Order (no prices)"
+ aria-label="Delivery Order"
+ className="inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 rounded-lg bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 text-sm font-medium transition-colors"
+ >
+ <Truck className="w-4 h-4" />
+ <span className="hidden sm:inline">DO</span>
  </button>
  <button
  onClick={() => setShowDeleteConfirm(true)}
