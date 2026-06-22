@@ -3562,6 +3562,66 @@ export async function seedDatabase() {
     console.log(`[startup] Round 39: Loft / Bunk bed configuration variants — inserted ${inserted} new SKU row(s) across all service types.`);
   }
 
+  /* ─── Round 40: Sliding Door Wardrobe (2-door / Mirror) SKU ────────────────
+     Real-world: the compact 2-door sliding wardrobe is very common in SG HDB
+     bedrooms, and many ship with full-length mirrored sliding doors. The
+     mirrored glass is heavy and fragile, so it needs careful padding/handling
+     beyond a plain laminate door. Pre-R40 the catalog only had a plain
+     "Sliding Door Wardrobe (2-door)" and a "Sliding Door Wardrobe (4-door /
+     Mirror)" — there was no 2-door mirror SKU, so a mirrored 2-door had to be
+     mis-mapped to the plain 2-door (under-quoted, no handling margin).
+
+     Pricing applies a mirror-handling premium over the plain sliding 2-door,
+     landing it level with the existing "Wardrobe with Built-in Mirror" and
+     keeping the canonical D&R bundle rule (relocate = (install+dismantle)×0.6):
+        install            $120  →  $150   (plain → mirror)
+        dismantle          $85   →  $110
+        relocate           $123  →  $156   = (150 + 110) × 0.6
+        dispose            $80   →  $100
+        dismantle_dispose  $130  →  $165
+     Transport volume 0.75 m³ — same footprint as the plain 2-door (0.70) plus
+     a touch more for protective crating of the glass.
+
+     Marker: WARDROBE-2DOOR-MIRROR-R40-MARKER.
+  */
+  const r40 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "WARDROBE-2DOOR-MIRROR-R40-MARKER")).limit(1);
+  if (r40.length === 0) {
+    const newRows: Array<{ sku: string; serviceType: string; basePrice: string; volumeM3: string }> = [
+      { sku: "SLDR2M-INSTALL",   serviceType: "install",           basePrice: "150.00", volumeM3: "0.75" },
+      { sku: "SLDR2M-DISMANTLE", serviceType: "dismantle",         basePrice: "110.00", volumeM3: "0.75" },
+      { sku: "SLDR2M-RELOCATE",  serviceType: "relocate",          basePrice: "156.00", volumeM3: "0.75" },
+      { sku: "SLDR2M-DISPOSE",   serviceType: "dispose",           basePrice: "100.00", volumeM3: "0.75" },
+      { sku: "SLDR2M-DIS-DISP",  serviceType: "dismantle_dispose", basePrice: "165.00", volumeM3: "0.75" },
+    ];
+    let inserted = 0;
+    for (const row of newRows) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: "Sliding Door Wardrobe (2-door / Mirror)",
+          sku: row.sku,
+          category: "Wardrobes",
+          serviceType: row.serviceType,
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__wardrobe_2door_mirror_r40_marker__",
+      sku: "WARDROBE-2DOOR-MIRROR-R40-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 40: Sliding Door Wardrobe (2-door / Mirror) — inserted ${inserted} new SKU row(s).`);
+  }
+
   // Quick-reply template library — seed the dispute-scenario templates idempotently
   // (by slug). Bodies keep {{placeholders}} so live business-rule values are
   // substituted at render time. Existing edited templates are never overwritten.
