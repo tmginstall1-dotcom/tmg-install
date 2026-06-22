@@ -32,6 +32,11 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<typeof users.$inferSelect | undefined>;
   getUserById(id: number): Promise<typeof users.$inferSelect | undefined>;
   getStaffMembers(): Promise<typeof users.$inferSelect[]>;
+  getCustomersDirectory(): Promise<{
+    id: number; name: string; email: string; phone: string;
+    companyName: string | null; companyUen: string | null; billingAddress: string | null;
+    jobCount: number; lastJobAt: Date | null;
+  }[]>;
   createUser(user: InsertUser): Promise<typeof users.$inferSelect>;
   updateUser(id: number, data: Partial<typeof users.$inferInsert>): Promise<typeof users.$inferSelect | undefined>;
   deleteUser(id: number): Promise<void>;
