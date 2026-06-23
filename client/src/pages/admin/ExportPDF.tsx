@@ -1,4 +1,5 @@
 import { useQuotes } from "@/hooks/use-quotes";
+import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText, Download, Loader2 } from "lucide-react";
@@ -48,10 +49,13 @@ function parseFloors(raw: any): string {
 /* ─── Print trigger ──────────────────────────────────────────── */
 function doPrint(mode: "summary" | "full") {
  document.body.dataset.printMode = mode;
- setTimeout(() => {
- window.print();
- setTimeout(() => delete document.body.dataset.printMode, 800);
- }, 60);
+ const cleanup = () => {
+ delete document.body.dataset.printMode;
+ window.removeEventListener("afterprint", cleanup);
+ };
+ window.addEventListener("afterprint", cleanup);
+ // Give React a tick to apply the print-mode attribute before opening the dialog.
+ setTimeout(() => window.print(), 60);
 }
 
 /* ─── Detail panel (right pane) ─────────────────────────────── */
@@ -877,8 +881,13 @@ export default function ExportPDF() {
  </div>
  </div>
 
- {/* ══ PRINT-ONLY REPORT (outside split pane) ══ */}
- <div className="print-only" id="report-body">
+ {/* ══ PRINT-ONLY REPORT — portaled onto <body> so it sits OUTSIDE the
+ admin app (#root). During print we hide #root entirely, leaving only this
+ clean report. This is what stops the admin sidebar / top bar / bottom nav
+ from bleeding into the exported PDF. ══ */}
+ {createPortal(
+ <div className="print-portal">
+ <div id="report-body">
  {/* Document header */}
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, paddingBottom: 10, borderBottom: "2px solid #111" }}>
  <div>
@@ -973,24 +982,32 @@ export default function ExportPDF() {
  <div id="print-details">
  {filteredJobs.map((q: any) => <PrintJob key={q.id} q={q} today={generatedAt} />)}
  </div>
+ </div>,
+ document.body
+ )}
 
  {/* ══ CSS ══ */}
  <style>{`
- .print-only { display: none !important; }
+ /* The report lives on <body> via a portal and is hidden until printing. */
+ .print-portal { display: none; }
 
  @media print {
- /* Hide all app chrome — navbar, screen-only UI */
- nav, header { display: none !important; }
- .screen-only { display: none !important; }
- .print-only { display: block !important; }
+ /* Hide the ENTIRE admin app (sidebar, top bar, bottom nav, splash) and
+ show only the portaled report. This removes every trace of app chrome
+ that used to bleed into the exported PDF. */
+ #root, #splash { display: none !important; }
+ .print-portal { display: block !important; }
 
  @page { size: A4 portrait; margin: 12mm; }
  body { font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
 
+ /* Summary export omits the per-job detail pages */
  body[data-print-mode="summary"] #print-details { display: none !important; }
  body[data-print-mode="full"] #print-details { display: block !important; }
 
+ /* Keep the summary together on the opening pages; never split a row mid-cell */
  #report-body { page-break-before: avoid; break-before: avoid; }
+ #report-body table tr { break-inside: avoid; page-break-inside: avoid; }
  }
  `}</style>
  </>
