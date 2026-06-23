@@ -3001,32 +3001,36 @@ export default function EstimateWizard() {
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between mt-4 gap-4">
-          {step > 1 ? (
-            <button onClick={back} data-testid="button-back"
-              className="flex items-center gap-2 px-5 py-3 border border-black/30 text-black font-black text-[11px] uppercase tracking-[0.22em] hover:bg-black hover:text-white hover:border-black transition-colors">
-              <ChevronLeft className="w-4 h-4" /> Back
-            </button>
-          ) : <div />}
+        {/* Navigation — pinned to the bottom of the screen so the Back / Next
+            (or Submit) buttons stay visible the moment a customer picks an
+            option, with no need to scroll to the end of a long step. */}
+        <div className="sticky bottom-0 z-30 -mx-4 mt-6 border-t border-black/15 bg-[#f1efe7]/95 px-4 py-3 backdrop-blur" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <div className="flex items-center justify-between gap-4">
+            {step > 1 ? (
+              <button onClick={back} data-testid="button-back"
+                className="flex items-center gap-2 px-5 py-3 border border-black/30 text-black font-black text-[11px] uppercase tracking-[0.22em] hover:bg-black hover:text-white hover:border-black transition-colors">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+            ) : <div />}
 
-          {step < 5 ? (
-            <button onClick={next} disabled={!canNext()} data-testid="button-next"
-              className="bg-black text-white flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
-              {step === 1 ? "Next" : step === 2 ? "Add Items" : step === 3 ? `Continue · ${items.length}` : "Review"}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
-              data-testid="button-submit"
-              className="text-black flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:opacity-90 disabled:opacity-35 disabled:cursor-not-allowed transition-opacity"
-              style={{ background: EST_ACCENT }}
-            >
-              {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : <>Request My Quote <ArrowRight className="w-4 h-4" /></>}
-            </button>
-          )}
+            {step < 5 ? (
+              <button onClick={next} disabled={!canNext()} data-testid="button-next"
+                className="bg-black text-white flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:bg-neutral-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors">
+                {step === 1 ? "Next" : step === 2 ? "Add Items" : step === 3 ? `Continue · ${items.length}` : "Review"}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || !name.trim() || !email.trim() || !phone.trim() || !termsAccepted}
+                data-testid="button-submit"
+                className="text-black flex items-center gap-2 px-7 py-3 font-black text-[11px] uppercase tracking-[0.22em] hover:opacity-90 disabled:opacity-35 disabled:cursor-not-allowed transition-opacity"
+                style={{ background: EST_ACCENT }}
+              >
+                {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : <>Request My Quote <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Save-progress secondary link — step 3 only, optional + low-emphasis */}
