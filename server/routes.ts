@@ -45,7 +45,7 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { getPackage } from "@shared/packages";
-import { renderInvoicePdf, PdfBusyError } from "./invoice-pdf";
+import { renderInvoicePdf, renderAuditReportPdf, PdfBusyError } from "./invoice-pdf";
 
 // Deposit / balance settlement helpers (splitDepositFinal, depositPaidFallback,
 // finalBalanceOutstanding) are the single source of truth in @shared/pricing so
@@ -9545,6 +9545,36 @@ Respond directly — no JSON, just the message text.`,
   app.get(/^\/invoice\/([^\/]+)\.pdf$/, (req: any, res: any) => {
     req.params.refNo = req.params[0];
     return invoicePdfHandler(req, res);
+  });
+
+  // Admin-only — server-rendered "Closed Jobs — Audit Report" PDF. Renders the
+  // real /admin/export page in headless Chromium so the output is clean and
+  // free of the browser's URL/page-number footer that window.print() adds.
+  app.get("/api/admin/export/audit-pdf", async (req: any, res: any) => {
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Not logged in" });
+      const caller = await storage.getUserById(req.session.userId);
+      if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+      const mode = req.query.mode === "full" ? "full" : "summary";
+      const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const from = isDate(req.query.from) ? req.query.from : undefined;
+      const to = isDate(req.query.to) ? req.query.to : undefined;
+
+      const pdf = await renderAuditReportPdf({ cookieHeader: req.headers.cookie, from, to, mode });
+      const stamp = new Date().toISOString().slice(0, 10);
+      const safeName = `TMG_Closed_Jobs_${mode === "full" ? "Full_" : ""}Report_${stamp}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
+    } catch (err: any) {
+      if (err instanceof PdfBusyError) {
+        return res.status(429).json({ message: "Server is busy generating reports. Please try again in a moment." });
+      }
+      console.error("[Audit Report PDF] generation error:", err);
+      res.status(500).json({ message: "Failed to generate report PDF" });
+    }
   });
 
   // Admin endpoint — returns a sendable invoice message (text + share URL).

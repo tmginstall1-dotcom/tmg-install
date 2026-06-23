@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText, Download, Loader2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { requiresFullUpfront } from "@shared/pricing";
 
@@ -44,18 +44,6 @@ function parseFloors(raw: any): string {
  }
  } catch {}
  return typeof raw === "string" ? raw : String(raw);
-}
-
-/* ─── Print trigger ──────────────────────────────────────────── */
-function doPrint(mode: "summary" | "full") {
- document.body.dataset.printMode = mode;
- const cleanup = () => {
- delete document.body.dataset.printMode;
- window.removeEventListener("afterprint", cleanup);
- };
- window.addEventListener("afterprint", cleanup);
- // Give React a tick to apply the print-mode attribute before opening the dialog.
- setTimeout(() => window.print(), 60);
 }
 
 /* ─── Detail panel (right pane) ─────────────────────────────── */
@@ -608,6 +596,51 @@ export default function ExportPDF() {
  const [statusFilter, setStatusFilter] = useState<"all" | "final_paid" | "closed">("all");
  const generatedAt = format(now, "d MMMM yyyy, HH:mm");
 
+ // Server-side PDF render mode: when the headless browser loads this page with
+ // ?pdf=1 it carries the date range / mode in the query string. We apply them,
+ // then flip data-pdf-ready so the server knows the report has fully rendered.
+ const [pdfReady, setPdfReady] = useState(false);
+ useEffect(() => {
+ const sp = new URLSearchParams(window.location.search);
+ if (sp.get("pdf") !== "1") return;
+ const f = sp.get("from");
+ const t = sp.get("to");
+ const m = sp.get("mode");
+ if (f) setDateFrom(f);
+ if (t) setDateTo(t);
+ document.body.dataset.printMode = m === "full" ? "full" : "summary";
+ setPdfReady(true);
+ }, []);
+
+ // Download the clean, server-generated audit PDF (no browser footer).
+ const [exporting, setExporting] = useState<null | "summary" | "full">(null);
+ const downloadReport = async (mode: "summary" | "full") => {
+ if (exporting) return;
+ setExporting(mode);
+ try {
+ const params = new URLSearchParams();
+ if (dateFrom) params.set("from", dateFrom);
+ if (dateTo) params.set("to", dateTo);
+ params.set("mode", mode);
+ const res = await fetch(`/api/admin/export/audit-pdf?${params.toString()}`, { credentials: "include" });
+ if (!res.ok) throw new Error(`HTTP ${res.status}`);
+ const blob = await res.blob();
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement("a");
+ a.href = url;
+ a.download = `TMG_Closed_Jobs_${mode === "full" ? "Full_" : ""}Report_${format(now, "yyyy-MM-dd")}.pdf`;
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ setTimeout(() => URL.revokeObjectURL(url), 4000);
+ } catch (err) {
+ console.error("[ExportPDF] report PDF failed:", err);
+ alert("Could not generate the report PDF. Please try again in a moment.");
+ } finally {
+ setExporting(null);
+ }
+ };
+
  const preset = (p: string) => {
  if (p === "month") { setDateFrom(format(startOfMonth(now), "yyyy-MM-dd")); setDateTo(format(endOfMonth(now), "yyyy-MM-dd")); }
  if (p === "last") { const pm = subMonths(now, 1); setDateFrom(format(startOfMonth(pm), "yyyy-MM-dd")); setDateTo(format(endOfMonth(pm), "yyyy-MM-dd")); }
@@ -691,15 +724,15 @@ export default function ExportPDF() {
  <SlidersHorizontal className="w-4 h-4" />
  <span className="hidden sm:inline">Filter</span>
  </button>
- <button onClick={() => doPrint("summary")}
- className="hidden sm:inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-black/12 text-black/70 hover:bg-white text-sm font-medium transition-colors"
+ <button onClick={() => downloadReport("summary")} disabled={!!exporting}
+ className="hidden sm:inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-black/12 text-black/70 hover:bg-white text-sm font-medium transition-colors disabled:opacity-50"
  data-testid="button-print-summary">
- <Printer className="w-4 h-4" /> Summary
+ {exporting === "summary" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} Summary
  </button>
- <button onClick={() => doPrint("full")}
- className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-medium transition-colors"
+ <button onClick={() => downloadReport("full")} disabled={!!exporting}
+ className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-medium transition-colors disabled:opacity-50"
  data-testid="button-export-pdf">
- <Printer className="w-4 h-4" /> Export PDF
+ {exporting === "full" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} Export PDF
  </button>
  </div>
  </div>
@@ -886,7 +919,7 @@ export default function ExportPDF() {
  clean report. This is what stops the admin sidebar / top bar / bottom nav
  from bleeding into the exported PDF. ══ */}
  {createPortal(
- <div className="print-portal">
+ <div className="print-portal" data-pdf-ready={pdfReady ? "1" : "0"}>
  <div id="report-body">
  {/* Document header */}
  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, paddingBottom: 10, borderBottom: "2px solid #111" }}>
