@@ -1,7 +1,7 @@
 import { useQuotes } from "@/hooks/use-quotes";
 import { Link } from "wouter";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
-import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText } from "lucide-react";
+import { Printer, ArrowLeft, X, SlidersHorizontal, Search, MapPin, Clock, CheckCircle2, FileText, Download, Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { requiresFullUpfront } from "@shared/pricing";
@@ -67,6 +67,31 @@ function DetailPanel({ q }: { q: any }) {
  ? Math.round((new Date(done.createdAt).getTime() - new Date(arrived.createdAt).getTime()) / 60000)
  : null;
 
+ const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+ const downloadInvoice = async () => {
+ if (downloadingInvoice) return;
+ setDownloadingInvoice(true);
+ try {
+ const res = await fetch(`/api/public/invoice/${encodeURIComponent(q.referenceNo)}/pdf`);
+ if (!res.ok) throw new Error(`HTTP ${res.status}`);
+ const blob = await res.blob();
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement("a");
+ a.href = url;
+ a.download = `Invoice_${String(q.referenceNo).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ // Delay revoke so Safari/iOS reliably completes the download.
+ setTimeout(() => URL.revokeObjectURL(url), 4000);
+ } catch (err) {
+ console.error("[ExportPDF] invoice download failed:", err);
+ alert("Could not generate the invoice PDF. Please try again in a moment.");
+ } finally {
+ setDownloadingInvoice(false);
+ }
+ };
+
  return (
  <div className="h-full flex flex-col">
  {/* ── Detail header ── */}
@@ -81,11 +106,20 @@ function DetailPanel({ q }: { q: any }) {
  </div>
  <p className="text-xs text-black/45">Submitted {dt(q.createdAt)} · {q.customer?.name}</p>
  </div>
- <div className="flex items-center gap-2 shrink-0">
+ <div className="flex items-center gap-3 shrink-0">
  <div className="text-right mr-1">
  <p className="text-xl font-black text-gray-900">{money(q.total)}</p>
  <p className="text-[10px] text-black/45 uppercase tracking-wide">Grand Total</p>
  </div>
+ <button
+ onClick={downloadInvoice}
+ disabled={downloadingInvoice}
+ className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+ data-testid="button-download-invoice"
+ >
+ {downloadingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+ {downloadingInvoice ? "Preparing…" : "Download Invoice"}
+ </button>
  </div>
  </div>
  </div>
