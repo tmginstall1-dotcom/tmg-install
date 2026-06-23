@@ -31,6 +31,6 @@
 - [Customer directory key](customer-directory-key.md) — dedup saved customers by canonical phone (digits-only, drop SG `65`), NOT id/email; reuse for any returning-customer/loyalty surface.
 - [Admin print doc-types](admin-print-doctypes.md) — invoice/quote/job-order/delivery-order are ONE handlePrintQuote HTML template branched by docType; DO must hide ALL prices incl. the relocation on-site-time block.
 - [CSRF allowed-origins](csrf-allowed-origins.md) — add REPLIT_DOMAINS/REPLIT_DEV_DOMAIN to ALLOWED_ORIGINS or every POST 403s in the Replit preview/deploy env; GETs are exempt so they mask it.
-- [Invoice PDF rendering](invoice-pdf-rendering.md) — invoice PDF = native window.print(), NOT html2canvas/jsPDF (both rejected); keep -webkit-print-color-adjust:exact or the dark header prints blank.
+- [Invoice PDF rendering](invoice-pdf-rendering.md) — invoice PDF = SERVER-side headless Chromium render of the real page (cache-proof); Chromium via Nix system dep; keep print-color-adjust:exact + printBackground.
 - [Staff pricing strip](staff-pricing-strip.md) — strip quote pricing on EVERY non-admin response path incl. staff mutation endpoints (arrived/site-clock/stage/checkout); use quoteForCaller wrapper.
 - [Admin shell crash scope](admin-shell-crash.md) — a render throw in AdminSidebar/BottomNav/Topbar crashes the whole admin area post-login (login page is fine); dev workflow has no tsc so missing-import ReferenceErrors ship.

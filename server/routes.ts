@@ -45,6 +45,7 @@ const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
 import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { getPackage } from "@shared/packages";
+import { renderInvoicePdf, PdfBusyError } from "./invoice-pdf";
 
 // Deposit / balance settlement helpers (splitDepositFinal, depositPaidFallback,
 // finalBalanceOutstanding) are the single source of truth in @shared/pricing so
@@ -9463,6 +9464,51 @@ Respond directly — no JSON, just the message text.`,
       console.error("[Invoice] public fetch error:", err);
       res.status(500).json({ message: err?.message || "Failed to load invoice" });
     }
+  });
+
+  // Server-rendered invoice PDF. Renders the real /invoice/:ref page with a
+  // headless browser so the download is identical to the on-screen invoice and
+  // works regardless of what the customer's browser has cached.
+  const invoicePdfHandler = async (req: any, res: any) => {
+    try {
+      const refNo = String(req.params.refNo || "").toUpperCase();
+      if (!refNo) return res.status(400).json({ message: "Invalid reference" });
+      const [row] = await db.select().from(quotesTable).where(
+        or(
+          eq(quotesTable.referenceNo, refNo),
+          drizzleSql`${quotesTable.legacyReferenceNos} @> ARRAY[${refNo}]::text[]`
+        )
+      ).limit(1);
+      if (!row) return res.status(404).json({ message: "Invoice not found" });
+      let quote = await storage.getQuote(row.id);
+      if (!quote) return res.status(404).json({ message: "Invoice not found" });
+      quote = await ensureClosedQuoteIsStamped(quote);
+      const paidInFull = !!quote.finalPaidAt
+        || quote.paymentStatus === "paid_in_full"
+        || quote.status === "final_paid"
+        || quote.status === "closed";
+      if (!paidInFull) {
+        return res.status(403).json({ message: "Invoice is only available once payment is complete." });
+      }
+      const pdf = await renderInvoicePdf(quote.referenceNo);
+      const safeName = `Invoice_${String(quote.invoiceNo || quote.referenceNo).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
+    } catch (err: any) {
+      if (err instanceof PdfBusyError) {
+        return res.status(429).json({ message: "Server is busy generating invoices. Please try again in a moment." });
+      }
+      console.error("[Invoice PDF] generation error:", err);
+      res.status(500).json({ message: "Failed to generate invoice PDF" });
+    }
+  };
+  app.get("/api/public/invoice/:refNo/pdf", invoicePdfHandler);
+  // Pretty alias so customers can be given a clean link, e.g. /invoice/TMG-123.pdf
+  app.get(/^\/invoice\/([^\/]+)\.pdf$/, (req: any, res: any) => {
+    req.params.refNo = req.params[0];
+    return invoicePdfHandler(req, res);
   });
 
   // Admin endpoint — returns a sendable invoice message (text + share URL).

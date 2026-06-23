@@ -5,15 +5,22 @@ description: How the customer invoice PDF (/invoice/:ref) is produced and why ot
 
 # Invoice PDF rendering
 
-The customer invoice PDF (download/print from `/invoice/:ref`, Invoice.tsx) is produced by the **browser's native print engine** (`window.print()`), not by any client-side PDF library. Both the "Download PDF" and "Print" buttons call the same `printInvoice()`, which sets `document.title` to `Invoice_<no>` (so the Save-as-PDF default filename is clean) and prints. Fidelity comes from a dedicated `@media print` block that hides all app chrome and reveals only `[data-invoice-print]`.
+The customer invoice PDF (download from `/invoice/:ref`, Invoice.tsx) is produced **server-side** by rendering the real invoice page with a headless Chromium and returning `page.pdf()`. This is the definitive solution after three rejected client-side attempts.
 
-**Why native print, not a generated file:**
-- **html2canvas capture** (raster the invoice card → jsPDF): rejected — it dropped the white "TMG INSTALL" text on the dark header band, producing a blank/unprofessional header. Raster capture of custom-styled text/backgrounds is unreliable.
-- **Hand-built jsPDF layout**: rejected — it is a second layout that never matches the live site and drifts on every design change.
-- **Server-side headless Chromium** (the ideal one-click+faithful option): not feasible here — `playwright-core` is a dep but NO browser binary is installed and there is no system Chromium; installing one on Replit/Nix is heavy and frequently fails to launch, which would break downloads in production.
+**How it works now:**
+- `server/invoice-pdf.ts` — `renderInvoicePdf(refNo)` launches Chromium via `playwright-core` (`executablePath` resolved from PATH at runtime, override with `CHROMIUM_PATH`), navigates to the app's OWN `http://127.0.0.1:${PORT}/invoice/:ref`, waits for `[data-invoice-print]`, returns `page.pdf({format:'A4', printBackground:true})`. `page.pdf()` uses print-media emulation, so the existing `@media print` CSS still governs layout. Bounded to 2 concurrent renders (throws `PdfBusyError` → 429).
+- Endpoint: `GET /api/public/invoice/:refNo/pdf` (+ pretty alias `GET /invoice/:refNo.pdf` via regex route). Verifies the quote is paid-in-full BEFORE launching the browser (same check as the JSON invoice route). Returns `application/pdf` with `Content-Disposition: attachment`.
+- Client "Download PDF" button fetches that endpoint as a blob and triggers a real file download (shows a "Preparing PDF…" spinner). "Print" still uses native `window.print()`. Download falls back to `printInvoice()` if the server request fails.
 
-**Critical CSS rule:** the header band and PAID badge are colored backgrounds. Chrome's print "Background graphics" checkbox defaults to OFF, which would strip them (white text on white = invisible header). `-webkit-print-color-adjust: exact` + `print-color-adjust: exact` on `[data-invoice-print]` forces those backgrounds to print on iOS Safari / Chrome / Safari regardless of that checkbox. **Never remove these** or the dark header goes blank again.
+**Why server-side won (the others were all rejected by the user):**
+- **html2canvas raster**: produced a "cream box" artifact over the dark header (white "TMG INSTALL" text lost). Raster capture of custom-styled text/backgrounds is unreliable.
+- **Hand-built jsPDF layout**: a second layout that drifts from the live site on every design change.
+- **Native `window.print()`**: renders correctly BUT depends on the customer's device having the latest cached JS. iOS home-screen web apps pin a stale service worker / bundle and do not reliably update, so the fix never reached the user's phone (they kept seeing the old html2canvas cream box). See `prod-stale-chunk-crash.md`. **Server-side render is cache-proof**: a direct link returns a correct PDF no matter what the client cached, because all the work happens on the server.
 
-**Print isolation gotcha:** use `body * { visibility: hidden }` + reveal `[data-invoice-print]` positioned `absolute; top:0`, and neutralize the page wrapper (`.invoice-page-wrapper` min-height/padding → 0) so the in-flow gray frame and global announcement bar/navbar don't force trailing blank pages.
+**Chromium availability:** installed as a **Nix system dependency** (package-management `installSystemDependencies(["chromium"])`), NOT a Playwright-downloaded browser. Nix system deps ship into production deployments (a `~/.cache/ms-playwright` download would not), so the endpoint works in prod. `command -v chromium` resolves it on PATH in both dev and prod.
 
-**UX tradeoff:** "Download PDF" opens the browser's print/share dialog (Save as PDF), not an instant file download — this is inherent to client-side vector PDF and is the accepted behavior.
+**Critical CSS rule (still required):** the dark header band and PAID badge are colored backgrounds. `-webkit-print-color-adjust: exact` + `print-color-adjust: exact` on `[data-invoice-print]` force them to render. `printBackground:true` in `page.pdf()` is also required. Never remove these or the dark header goes blank.
+
+**Print isolation gotcha (still in the @media print block):** `body * { visibility:hidden }` + reveal `[data-invoice-print]` positioned `absolute; top:0`, and neutralize `.invoice-page-wrapper` min-height/padding → 0, so the gray frame / navbar don't force trailing blank pages.
+
+**Verification trick:** to confirm a render without a paid invoice in dev, temporarily flip a quote's `payment_status` to `'paid_in_full'`, hit the endpoint, then restore. To SEE the output, drive Chromium with `emulateMedia({media:'print'})` + element `.screenshot()` and read the PNG.

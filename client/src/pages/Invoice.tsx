@@ -111,6 +111,7 @@ export default function Invoice() {
   const [data, setData] = useState<InvoicePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const [policyClauses, setPolicyClauses] = useState<PolicyClause[]>([]);
 
   // Business-rules policy clauses — shared source of truth so the invoice
@@ -170,7 +171,33 @@ export default function Invoice() {
     window.print();
   };
 
-  const handleDownload = () => printInvoice();
+  // Download the PDF rendered ON THE SERVER. This returns a file identical to
+  // the on-screen invoice (real headless browser render) and does not depend on
+  // the customer's cached JS or device print engine. Falls back to the native
+  // print dialog only if the server request fails.
+  const handleDownload = async () => {
+    if (downloading) return;
+    const ref = data?.referenceNo || refNo;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/public/invoice/${encodeURIComponent(ref)}/pdf`);
+      if (!res.ok) throw new Error(`PDF request failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${pdfFileName()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      // Last-resort fallback so the button is never a dead end.
+      printInvoice();
+    } finally {
+      setDownloading(false);
+    }
+  };
   const handlePrint = () => printInvoice();
 
   // Auto-open the print/save dialog when ?print=1 or ?download=1 is present
@@ -228,12 +255,12 @@ export default function Invoice() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              disabled={!data}
+              disabled={!data || downloading}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
               data-testid="button-download-invoice-pdf"
             >
-              <Download className="w-4 h-4" />
-              Download PDF
+              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloading ? "Preparing PDF…" : "Download PDF"}
             </button>
             <button
               onClick={handlePrint}
