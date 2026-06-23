@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import fs from "fs";
 import path from "path";
-import { injectHomepageRating } from "./seo-pages";
+import { injectHomepageRating, injectHomepageContent } from "./seo-pages";
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
@@ -77,6 +77,12 @@ export function serveStatic(app: Express) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     const pathname = req.path;
     const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
-    res.send(injectHomepageRating(isAdmin ? indexHtmlAdmin : indexHtmlPublic));
+    if (!isAdmin && pathname === "/") {
+      // Homepage — pre-render crawler content into #root so search engines see
+      // a real H1, headings, paragraphs and links (React replaces it on mount).
+      res.send(injectHomepageContent(indexHtmlPublic));
+    } else {
+      res.send(injectHomepageRating(isAdmin ? indexHtmlAdmin : indexHtmlPublic));
+    }
   });
 }

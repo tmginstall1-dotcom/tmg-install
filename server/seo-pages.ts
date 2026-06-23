@@ -95,6 +95,59 @@ export function injectHomepageRating(html: string): string {
     .replace(/("aggregateRating"\s*:\s*\{[^}]*?"ratingValue"\s*:\s*)"[^"]*"/, `$1"${ratingValue()}"`)
     .replace(/("reviewCount"\s*:\s*)"[^"]*"/, `$1"${ratingCount()}"`);
 }
+
+/* ── Homepage crawler content ────────────────────────────────────────────────
+   The homepage "/" serves the React SPA, whose root element is empty in the
+   delivered HTML — so search-engine crawlers that do not execute JavaScript saw
+   a page with no <h1>, no headings, almost no text and no links. We pre-render a
+   real, keyword-rich content block INTO #root. React mounts with createRoot(),
+   which clears #root and replaces this with the live app for real visitors (and
+   it sits behind the full-screen splash overlay until then), so there is no
+   cloaking and no hydration mismatch — crawlers index the content, users get the
+   app. Keep the copy aligned with the homepage meta title/description. */
+function homepageSeoBlock(): string {
+  const serviceLinks = SERVICE_PAGES
+    .map(p => `<li><a href="/services/${p.slug}">${esc(p.label)} Singapore</a></li>`)
+    .join("");
+  const guideLinks = GUIDE_PAGES
+    .map(p => `<li><a href="/guides/${p.slug}">${esc(p.label)}</a></li>`)
+    .join("");
+  return `<div id="seo-home" style="max-width:980px;margin:0 auto;padding:2rem 1.25rem;font-family:Inter,system-ui,-apple-system,sans-serif;color:#1a1a2e;line-height:1.6">
+  <p style="font-weight:800"><a href="/">TMG Install — The Moving Guy Pte Ltd</a></p>
+  <h1>Furniture Installation &amp; Relocation Singapore</h1>
+  <p><strong>TMG Install</strong> (The Moving Guy Pte Ltd) is Singapore's trusted specialist for professional furniture installation, assembly, dismantling and relocation. Get an instant, upfront quote online in about 60 seconds — no site visit needed for most jobs and no hidden fees.</p>
+  <p>Whether you need IKEA, Taobao, Castlery, Lazada or Shopee furniture assembled, a full HDB or condominium move, or careful dismantle-and-reinstall of your wardrobe and bed frame, our experienced, MCST-compliant team handles every job across Singapore with care and transparent, fixed pricing.</p>
+
+  <h2>Our Furniture Services in Singapore</h2>
+  <p>We cover the full range of home and office furniture work island-wide:</p>
+  <ul>${serviceLinks}</ul>
+
+  <h2>Helpful Guides &amp; Pricing</h2>
+  <p>Not sure what your job should cost? These guides explain typical pricing and how we compare:</p>
+  <ul>${guideLinks}</ul>
+
+  <h2>Why Choose TMG Install</h2>
+  <p>We make furniture installation and moving in Singapore simple, predictable and stress-free. Rated ${ratingValue()} from ${ratingCount()}+ customer reviews, our installers arrive on time, work cleanly and treat your home with respect.</p>
+  <ul>
+    <li>Instant, transparent quotes — know your price before you book</li>
+    <li>Experienced, careful installers for HDB flats, condos and landed homes</li>
+    <li>Full relocation service: dismantle, transport and reinstall</li>
+    <li>Disposal and old-mattress removal available on request</li>
+  </ul>
+
+  <h2>Book Your Installation or Move</h2>
+  <p>Ready to get started? <a href="/services">Browse all our services</a> or request an instant quote online. Based in Singapore, we serve every HDB estate, condominium and commercial office island-wide. You can also <a href="https://www.google.com/maps/search/?api=1&amp;query=The+Moving+Guy+Pte+Ltd+Singapore" rel="noopener" target="_blank">find us on Google Maps</a>.</p>
+</div>`;
+}
+
+/* Serve the homepage shell with the crawler content block injected into #root
+   (plus the synced aggregate-rating numbers). Used only for the "/" route. */
+export function injectHomepageContent(html: string): string {
+  return injectHomepageRating(html).replace(
+    '<div id="root"></div>',
+    `<div id="root">${homepageSeoBlock()}</div>`,
+  );
+}
 /* Escape user-managed strings before interpolating into HTML. */
 function esc(s: string): string {
   return String(s ?? "")

@@ -15,8 +15,24 @@ const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
 
+// Remove the framework fingerprint header (X-Powered-By: Express) — SEO/security
+app.disable("x-powered-by");
+
 // ── Health check — always respond immediately, before any DB work ─────────────
 app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// ── Canonical host — 301 redirect www → non-www ──────────────────────────────
+// The site is canonicalised on the bare apex (https://tmginstall.com). Serving
+// both www and non-www creates duplicate content and splits SEO ranking signals,
+// so any request arriving on a "www." host is permanently redirected to the apex.
+// Only acts on real "www." hostnames, so platform/preview domains are untouched.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const host = req.headers.host;
+  if (host && host.toLowerCase().startsWith("www.")) {
+    return res.redirect(301, `https://${host.slice(4)}${req.originalUrl}`);
+  }
+  next();
+});
 
 // Gzip compress text responses — reduces JSON/HTML/CSS/JS size by 70-90%
 // Skip tiny responses (<1 KB) and already-compressed formats (images, fonts)

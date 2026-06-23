@@ -5,7 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
-import { injectHomepageRating } from "./seo-pages";
+import { injectHomepageRating, injectHomepageContent } from "./seo-pages";
 
 const viteLogger = createLogger();
 
@@ -64,7 +64,10 @@ export async function setupVite(server: Server, app: Express) {
         );
       }
 
-      const page = injectHomepageRating(await vite.transformIndexHtml(url, template));
+      const transformed = await vite.transformIndexHtml(url, template);
+      const page = pathname === "/"
+        ? injectHomepageContent(transformed)
+        : injectHomepageRating(transformed);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
