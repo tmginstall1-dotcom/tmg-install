@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { groupStops, itemRouteLabel } from "@/lib/stops";
 import type { QuoteStop } from "@shared/schema";
-import { downloadInvoicePdf, openInvoicePdfForPrint } from "@/lib/invoicePdf";
+import { downloadInvoicePdfFromElement, openInvoicePdfFromElement } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
@@ -143,11 +143,30 @@ export default function Invoice() {
     return () => { cancelled = true; };
   }, [refNo]);
 
-  // Auto-download the polished PDF when ?print=1 or ?download=1 is in the URL.
-  // Emailed "Print / Save PDF" links land here; we generate the jsPDF rather
-  // than printing the web page (which paginated poorly). A direct download is
-  // the most reliable professional result across browsers (notably iOS Safari,
-  // where auto-opened popups are blocked).
+  // Ref to the on-screen invoice card. The PDF is a capture of this exact
+  // element, so the download/print always matches the website.
+  const invoiceRef = useRef<HTMLDivElement>(null);
+
+  const pdfFileName = () =>
+    `Invoice_${String(data?.invoiceNo || refNo).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
+
+  const handleDownload = async () => {
+    if (!invoiceRef.current) return;
+    try {
+      await downloadInvoicePdfFromElement(invoiceRef.current, pdfFileName());
+    } catch (e) {
+      console.error("Invoice PDF download failed", e);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!invoiceRef.current) return;
+    await openInvoicePdfFromElement(invoiceRef.current, pdfFileName());
+  };
+
+  // Auto-generate the PDF when ?print=1 or ?download=1 is in the URL (emailed
+  // links). We capture the rendered invoice card so the file always matches the
+  // website exactly.
   const autoActionDone = useRef(false);
   useEffect(() => {
     if (!data || autoActionDone.current) return;
@@ -156,9 +175,7 @@ export default function Invoice() {
     // Run once: policyClauses may arrive after the invoice data, so guard
     // against a second download when this effect re-fires.
     autoActionDone.current = true;
-    const t = setTimeout(() => {
-      try { downloadInvoicePdf({ ...data, policyClauses }); } catch (e) { console.error("PDF download failed", e); }
-    }, 350);
+    const t = setTimeout(() => { handleDownload(); }, 500);
     return () => clearTimeout(t);
   }, [data, policyClauses]);
 
@@ -184,7 +201,7 @@ export default function Invoice() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => data && downloadInvoicePdf({ ...data, policyClauses })}
+              onClick={handleDownload}
               disabled={!data}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
               data-testid="button-download-invoice-pdf"
@@ -193,7 +210,7 @@ export default function Invoice() {
               Download PDF
             </button>
             <button
-              onClick={() => data && openInvoicePdfForPrint({ ...data, policyClauses })}
+              onClick={handlePrint}
               disabled={!data}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
               data-testid="button-print-invoice"
@@ -224,6 +241,7 @@ export default function Invoice() {
         {/* Invoice */}
         {data && !loading && (
           <div
+            ref={invoiceRef}
             data-invoice-print
             data-testid="invoice-document"
             className="max-w-[820px] mx-auto bg-white rounded-2xl shadow-sm overflow-hidden print:shadow-none print:rounded-none"
@@ -281,7 +299,7 @@ export default function Invoice() {
               const isCommercial = data.invoiceType === "commercial";
               const showEmail = data.customerEmail && !data.customerEmail.includes("@tmginstall.com");
               return (
-                <div className="px-7 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="print-grid-2 px-7 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                       Bill To{isCommercial ? " (Commercial)" : ""}
@@ -416,7 +434,7 @@ export default function Invoice() {
 
             {/* Totals */}
             <div className="px-7 pb-6">
-              <div className="ml-auto sm:w-[360px]">
+              <div className="print-totals ml-auto sm:w-[360px]">
                 <div className="space-y-1 text-[13px]">
                   <div className="flex justify-between text-gray-700">
                     <span>Labour subtotal</span>
