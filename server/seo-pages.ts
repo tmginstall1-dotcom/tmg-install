@@ -114,26 +114,51 @@ function homepageSeoBlock(): string {
     .join("");
   return `<div id="seo-home" style="max-width:980px;margin:0 auto;padding:2rem 1.25rem;font-family:Inter,system-ui,-apple-system,sans-serif;color:#1a1a2e;line-height:1.6">
   <p style="font-weight:800"><a href="/">TMG Install — The Moving Guy Pte Ltd</a></p>
-  <h1>Furniture Installation &amp; Relocation Singapore</h1>
-  <p><strong>TMG Install</strong> (The Moving Guy Pte Ltd) is Singapore's trusted specialist for professional furniture installation, assembly, dismantling and relocation. Get an instant, upfront quote online in about 60 seconds — no site visit needed for most jobs and no hidden fees.</p>
-  <p>Whether you need IKEA, Taobao, Castlery, Lazada or Shopee furniture assembled, a full HDB or condominium move, or careful dismantle-and-reinstall of your wardrobe and bed frame, our experienced, MCST-compliant team handles every job across Singapore with care and transparent, fixed pricing.</p>
+  <h1>TMG Install — Furniture Installation &amp; Relocation Singapore</h1>
+  <p><strong>TMG Install</strong>, operated by The Moving Guy Pte Ltd, is Singapore's trusted specialist for professional furniture installation, assembly, dismantling and relocation. We help homeowners, tenants, interior designers and offices set up their space quickly and safely — without the stress of doing it all yourself. Get an instant, upfront quote online in about 60 seconds: no site visit is needed for most jobs, and there are no hidden fees or surprise charges on the day.</p>
+  <p>Whether you have just received a flat-pack delivery from IKEA, Taobao, Castlery, Lazada or Shopee, or you are planning a full HDB or condominium move, our experienced, MCST-compliant team handles every job with care. We assemble wardrobes, beds, sofas, tables, shelving and office furniture, mount TVs on concrete and HDB walls, and carry out careful dismantle-and-reinstall whenever you relocate your home or office across Singapore.</p>
 
   <h2>Our Furniture Services in Singapore</h2>
-  <p>We cover the full range of home and office furniture work island-wide:</p>
+  <p>We cover the full range of home and office furniture work island-wide. From a single wardrobe to a whole-house move, every service comes with the same clear pricing and careful handling:</p>
   <ul>${serviceLinks}</ul>
 
-  <h2>Helpful Guides &amp; Pricing</h2>
-  <p>Not sure what your job should cost? These guides explain typical pricing and how we compare:</p>
+  <h2>How It Works</h2>
+  <p>Booking with TMG Install is simple and completely transparent. First, tell us what you need through our online estimator — choose your items, your location and your preferred date, and you will see a clear, itemised price straight away. Next, confirm your booking and pay a small deposit to lock in your time slot. On the day, our installers arrive within the agreed window, fully equipped with the right tools and fixings, complete the work neatly, and tidy up before they leave. You only settle the balance once you are happy with the finished job.</p>
+  <ol>
+    <li>Get an instant online quote in about 60 seconds</li>
+    <li>Choose a morning or afternoon slot that suits you</li>
+    <li>Our team arrives on time, fully equipped</li>
+    <li>We assemble, mount, dismantle or relocate your furniture</li>
+    <li>We clean up and you approve the completed work</li>
+  </ol>
+
+  <h2>Transparent, Upfront Pricing</h2>
+  <p>We believe you should know the cost before you book — not after the work is done. Our pricing is based on the exact items and services you select, so there are no vague hourly rates and no nasty surprises at the end. If you would like to understand typical costs first, these guides break everything down clearly:</p>
   <ul>${guideLinks}</ul>
 
+  <h2>Areas We Serve</h2>
+  <p>TMG Install serves the whole of Singapore, including every HDB estate, private condominium and landed home, as well as commercial offices and retail units. From Toa Payoh, Tampines, Jurong and Woodlands to Bishan, Bukit Timah, Punggol and the central business district, our installers travel island-wide. We are familiar with HDB and condo move-in rules, lift booking and MCST requirements, so your installation or move stays smooth, on schedule and fully compliant.</p>
+
   <h2>Why Choose TMG Install</h2>
-  <p>We make furniture installation and moving in Singapore simple, predictable and stress-free. Rated ${ratingValue()} from ${ratingCount()}+ customer reviews, our installers arrive on time, work cleanly and treat your home with respect.</p>
+  <p>We make furniture installation and moving in Singapore simple, predictable and stress-free. Rated ${ratingValue()} from ${ratingCount()}+ customer reviews, our installers arrive on time, work cleanly and treat your home with respect from the moment they step through the door.</p>
   <ul>
     <li>Instant, transparent quotes — know your price before you book</li>
     <li>Experienced, careful installers for HDB flats, condos and landed homes</li>
     <li>Full relocation service: dismantle, transport and reinstall</li>
+    <li>TV mounting on concrete and HDB walls with tidy cable management</li>
     <li>Disposal and old-mattress removal available on request</li>
+    <li>Friendly support over chat — no endless phone calls</li>
   </ul>
+
+  <h2>Frequently Asked Questions</h2>
+  <h3>How fast can I get a quote?</h3>
+  <p>Most customers get a full, itemised quote in about 60 seconds using our online estimator, so there is no waiting around for a callback before you can plan your installation or move.</p>
+  <h3>Do you handle both assembly and moving?</h3>
+  <p>Yes. We assemble brand-new furniture, dismantle and reinstall existing pieces, and carry out complete home and office relocations anywhere in Singapore.</p>
+  <h3>Which furniture brands do you assemble?</h3>
+  <p>We assemble furniture from IKEA, Taobao, Castlery, Lazada, Shopee and most other retailers, including flat-pack wardrobes, beds, storage systems and office desks.</p>
+  <h3>Can you dispose of my old furniture?</h3>
+  <p>Yes — we can remove and dispose of old furniture and mattresses on request. Just add disposal when you book and our team will take it away on the day.</p>
 
   <h2>Book Your Installation or Move</h2>
   <p>Ready to get started? <a href="/services">Browse all our services</a> or request an instant quote online. Based in Singapore, we serve every HDB estate, condominium and commercial office island-wide. You can also <a href="https://www.google.com/maps/search/?api=1&amp;query=The+Moving+Guy+Pte+Ltd+Singapore" rel="noopener" target="_blank">find us on Google Maps</a>.</p>
