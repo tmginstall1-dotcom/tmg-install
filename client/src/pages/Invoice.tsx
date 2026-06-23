@@ -5,7 +5,6 @@ import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { groupStops, itemRouteLabel } from "@/lib/stops";
 import type { QuoteStop } from "@shared/schema";
-import { downloadInvoicePdfFromElement, openInvoicePdfFromElement } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
@@ -143,39 +142,46 @@ export default function Invoice() {
     return () => { cancelled = true; };
   }, [refNo]);
 
-  // Ref to the on-screen invoice card. The PDF is a capture of this exact
-  // element, so the download/print always matches the website.
+  // Ref to the on-screen invoice card (kept for any future use / scrolling).
   const invoiceRef = useRef<HTMLDivElement>(null);
 
+  // Clean filename used as the print document title — browsers use the title as
+  // the default "Save as PDF" filename.
   const pdfFileName = () =>
-    `Invoice_${String(data?.invoiceNo || refNo).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
+    `Invoice_${String(data?.invoiceNo || refNo).replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
-  const handleDownload = async () => {
-    if (!invoiceRef.current) return;
-    try {
-      await downloadInvoicePdfFromElement(invoiceRef.current, pdfFileName());
-    } catch (e) {
-      console.error("Invoice PDF download failed", e);
-    }
+  // Generate the PDF with the browser's NATIVE print engine. This prints the
+  // real invoice page (vector text + graphics), so the saved PDF looks EXACTLY
+  // like the website — crisp header included — with no rasterized capture and no
+  // second layout that can drift out of sync.
+  const printInvoice = () => {
+    const prevTitle = document.title;
+    let timer = 0;
+    const restore = () => {
+      document.title = prevTitle;
+      window.removeEventListener("afterprint", restore);
+      window.clearTimeout(timer);
+    };
+    document.title = pdfFileName();
+    window.addEventListener("afterprint", restore);
+    // Safety net: some mobile browsers never fire afterprint.
+    timer = window.setTimeout(restore, 60000);
+    window.focus();
+    window.print();
   };
 
-  const handlePrint = async () => {
-    if (!invoiceRef.current) return;
-    await openInvoicePdfFromElement(invoiceRef.current, pdfFileName());
-  };
+  const handleDownload = () => printInvoice();
+  const handlePrint = () => printInvoice();
 
-  // Auto-generate the PDF when ?print=1 or ?download=1 is in the URL (emailed
-  // links). We capture the rendered invoice card so the file always matches the
-  // website exactly.
+  // Auto-open the print/save dialog when ?print=1 or ?download=1 is present
+  // (emailed "Print / Save PDF" links).
   const autoActionDone = useRef(false);
   useEffect(() => {
     if (!data || autoActionDone.current) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("print") !== "1" && params.get("download") !== "1") return;
-    // Run once: policyClauses may arrive after the invoice data, so guard
-    // against a second download when this effect re-fires.
     autoActionDone.current = true;
-    const t = setTimeout(() => { handleDownload(); }, 500);
+    const t = setTimeout(() => { printInvoice(); }, 600);
     return () => clearTimeout(t);
   }, [data, policyClauses]);
 
@@ -183,16 +189,36 @@ export default function Invoice() {
     <>
       <style>{`
         @media print {
-          @page { size: A4; margin: 14mm 12mm; }
+          @page { size: A4; margin: 12mm 10mm; }
           html, body { background: #fff !important; }
+          /* Neutralise the gray page frame so it never forces blank pages. */
+          .invoice-page-wrapper { min-height: 0 !important; padding: 0 !important; background: #fff !important; }
           body * { visibility: hidden !important; }
           [data-invoice-print], [data-invoice-print] * { visibility: visible !important; }
-          [data-invoice-print] { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; background: #fff !important; }
+          [data-invoice-print] {
+            position: absolute !important;
+            left: 0; top: 0;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+          }
+          /* Force backgrounds/colours to print (dark header band, PAID badge…). */
+          [data-invoice-print], [data-invoice-print] * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Keep the table header on each page and stop rows splitting mid-row. */
+          [data-invoice-print] thead { display: table-header-group; }
+          [data-invoice-print] tr { break-inside: avoid; page-break-inside: avoid; }
           .no-print { display: none !important; }
         }
       `}</style>
 
-      <div className="min-h-screen bg-gray-100 py-6 sm:py-10 px-3 sm:px-6">
+      <div className="invoice-page-wrapper min-h-screen bg-gray-100 py-6 sm:py-10 px-3 sm:px-6">
         {/* Toolbar (hidden in print) */}
         <div className="no-print max-w-[820px] mx-auto mb-4 flex items-center justify-between">
           <div>
