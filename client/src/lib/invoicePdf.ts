@@ -734,18 +734,26 @@ export function buildInvoicePdf(data: InvoicePdfData): jsPDF {
     });
   }
 
-  // ── Footer ───────────────────────────────────────────────────────
-  const footerY = pageH - 12;
-  doc.setDrawColor(230, 230, 230);
-  doc.line(marginX, footerY - 4, pageW - marginX, footerY - 4);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(107, 114, 128);
-  doc.text(
-    `Thank you for choosing TMG Install. For any questions please contact ${TEL} or ${MAIL}.`,
-    pageW / 2, footerY, { align: "center" }
-  );
-  doc.text(`${CO} · UEN ${UEN} · ${WEB} · Vehicle ${VEHICLE}`, pageW / 2, footerY + 4, { align: "center" });
+  // ── Footer (stamped on EVERY page so multi-page invoices stay branded) ──
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    const footerY = pageH - 12;
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(0.2);
+    doc.line(marginX, footerY - 4, pageW - marginX, footerY - 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(107, 114, 128);
+    doc.text(
+      `Thank you for choosing TMG Install. For any questions please contact ${TEL} or ${MAIL}.`,
+      pageW / 2, footerY, { align: "center" }
+    );
+    doc.text(`${CO} · UEN ${UEN} · ${WEB} · Vehicle ${VEHICLE}`, pageW / 2, footerY + 4, { align: "center" });
+    doc.setFontSize(6.5);
+    doc.setTextColor(156, 163, 175);
+    doc.text(`Page ${p} of ${pageCount}`, pageW - marginX, footerY + 8, { align: "right" });
+  }
 
   return doc;
 }
@@ -754,4 +762,21 @@ export function downloadInvoicePdf(data: InvoicePdfData): void {
   const doc = buildInvoicePdf(data);
   const safeRef = (data.invoiceNo || data.referenceNo || "invoice").replace(/[^A-Za-z0-9_-]/g, "_");
   doc.save(`Invoice_${safeRef}.pdf`);
+}
+
+// Open the polished PDF in a new tab and trigger the browser's print dialog on
+// it. This replaces window.print() of the web page (which produced an
+// unprofessional, awkwardly paginated result). If the popup is blocked we fall
+// back to a normal download so the customer still gets the clean PDF.
+export function openInvoicePdfForPrint(data: InvoicePdfData): void {
+  try {
+    const doc = buildInvoicePdf(data);
+    doc.autoPrint();
+    const url = doc.output("bloburl");
+    const win = window.open(url, "_blank");
+    if (!win) downloadInvoicePdf(data);
+  } catch (e) {
+    console.error("PDF print failed, falling back to download", e);
+    downloadInvoicePdf(data);
+  }
 }

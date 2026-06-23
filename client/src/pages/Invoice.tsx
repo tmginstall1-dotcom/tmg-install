@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { Printer, Loader2, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { formatItemDescription } from "@/lib/itemLabel";
 import { groupStops, itemRouteLabel } from "@/lib/stops";
 import type { QuoteStop } from "@shared/schema";
-import { downloadInvoicePdf } from "@/lib/invoicePdf";
+import { downloadInvoicePdf, openInvoicePdfForPrint } from "@/lib/invoicePdf";
 import { requiresFullUpfront } from "@shared/pricing";
 import { QuoteTermsBlock } from "@/components/shared/QuoteTermsBlock";
 import { QuoteScheduleNote } from "@/components/shared/QuoteScheduleNote";
@@ -143,20 +143,23 @@ export default function Invoice() {
     return () => { cancelled = true; };
   }, [refNo]);
 
-  // Auto-print when ?print=1 / Auto-download PDF when ?download=1 is in the URL
+  // Auto-download the polished PDF when ?print=1 or ?download=1 is in the URL.
+  // Emailed "Print / Save PDF" links land here; we generate the jsPDF rather
+  // than printing the web page (which paginated poorly). A direct download is
+  // the most reliable professional result across browsers (notably iOS Safari,
+  // where auto-opened popups are blocked).
+  const autoActionDone = useRef(false);
   useEffect(() => {
-    if (!data) return;
+    if (!data || autoActionDone.current) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("print") === "1") {
-      const t = setTimeout(() => window.print(), 350);
-      return () => clearTimeout(t);
-    }
-    if (params.get("download") === "1") {
-      const t = setTimeout(() => {
-        try { downloadInvoicePdf({ ...data, policyClauses }); } catch (e) { console.error("PDF download failed", e); }
-      }, 350);
-      return () => clearTimeout(t);
-    }
+    if (params.get("print") !== "1" && params.get("download") !== "1") return;
+    // Run once: policyClauses may arrive after the invoice data, so guard
+    // against a second download when this effect re-fires.
+    autoActionDone.current = true;
+    const t = setTimeout(() => {
+      try { downloadInvoicePdf({ ...data, policyClauses }); } catch (e) { console.error("PDF download failed", e); }
+    }, 350);
+    return () => clearTimeout(t);
   }, [data, policyClauses]);
 
   return (
@@ -190,7 +193,7 @@ export default function Invoice() {
               Download PDF
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={() => data && openInvoicePdfForPrint({ ...data, policyClauses })}
               disabled={!data}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
               data-testid="button-print-invoice"
