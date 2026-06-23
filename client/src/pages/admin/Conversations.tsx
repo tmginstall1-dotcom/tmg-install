@@ -324,7 +324,10 @@ function MessageBubble({
  .map((l) => l.trim())
  .filter(Boolean)
  : [];
- const isUnsupported = !msg.mediaUrl && (msg.body === "[Message]" || msg.body?.startsWith("[Unsupported"));
+ const isUnsupported = !msg.mediaUrl && (msg.body === "[Message]" || (msg.body?.startsWith("[Unsupported") ?? false) || (msg.body?.startsWith("[System:") ?? false));
+ // Pull out the human-readable reason the server captured, when present:
+ //   "[Unsupported: <reason>]" or "[System: <reason>]" → "<reason>"
+ const unsupportedDetail = msg.body?.match(/^\[(?:Unsupported|System):\s*(.+)\]$/)?.[1]?.trim() || null;
 
  // mediaUrl stores the WhatsApp media ID — route it through our proxy endpoint.
  // Fall back to body if it happens to be a direct URL (legacy support).
@@ -562,7 +565,7 @@ function MessageBubble({
  <div className={`flex items-center gap-3 px-4 py-3 ${radius} ${bubbleStyle} min-w-[180px] opacity-70`}>
  <MessageSquare className="w-4 h-4 flex-shrink-0 text-gray-400" />
  <div>
- <p className="text-sm italic text-gray-500">Message not displayable here</p>
+ <p className="text-sm italic text-gray-500" data-testid={`text-unsupported-${msg.id}`}>{unsupportedDetail || "Message not displayable here"}</p>
  <p className={`text-[11px] mt-0.5 text-gray-400`}>Open WhatsApp to view</p>
  </div>
  </div>

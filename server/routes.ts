@@ -6965,6 +6965,26 @@ Respond with ONLY a JSON array (no prose, no markdown):
       // ── Extract readable text from any WhatsApp message type ─────────────────
       // WhatsApp sends text in different fields depending on message type:
       // text→msg.text.body | image/video/doc→caption | interactive→button/list reply title | button→msg.button.text
+      // Flow / form submissions (nfm_reply) carry the customer's answers as a
+      // JSON string in response_json — flatten it into readable "key: value"
+      // lines so the admin can read what the customer submitted instead of a
+      // blank "Message not displayable" bubble.
+      const extractFlowReply = (m: any): string => {
+        const nfm = m.interactive?.nfm_reply;
+        if (!nfm) return "";
+        const raw = nfm.response_json;
+        if (raw) {
+          try {
+            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            const lines = Object.entries(parsed)
+              .filter(([k]) => k !== "flow_token")
+              .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+            if (lines.length) return lines.join("\n");
+          } catch { /* fall through to nfm body */ }
+        }
+        return nfm.body || "";
+      };
+
       const extractText = (m: any): string => (
         m.text?.body ||
         m.image?.caption ||
@@ -6972,6 +6992,7 @@ Respond with ONLY a JSON array (no prose, no markdown):
         m.document?.caption ||
         m.interactive?.button_reply?.title ||
         m.interactive?.list_reply?.title ||
+        extractFlowReply(m) ||
         m.button?.text ||
         // Reactions: store the emoji so the admin can see what the customer reacted
         (m.type === 'reaction' && m.reaction?.emoji ? `[Reaction: ${m.reaction.emoji}]` : "") ||
@@ -7010,6 +7031,16 @@ Respond with ONLY a JSON array (no prose, no markdown):
         return `${label}\n${lines.join('\n')}`;
       };
 
+      // When Meta marks a message "unsupported" it omits the actual content but
+      // usually includes an errors[] entry explaining why (e.g. a newer message
+      // type our API version can't render). Surface that reason to the admin
+      // instead of a useless generic placeholder.
+      const unsupportedReason: string = (
+        Array.isArray(msg.errors) && msg.errors.length
+          ? (msg.errors[0]?.error_data?.details || msg.errors[0]?.title || "")
+          : ""
+      ).toString().trim();
+
       // Friendly fallback labels for media-only messages
       const fallbackLabel =
         msg.type === 'image'    ? '[Photo]'    :
@@ -7020,7 +7051,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
         msg.type === 'location' ? '[Location sent]' :
         msg.type === 'contacts' ? formatSharedContacts(msg.contacts)  :
         msg.type === 'reaction' ? `[Reaction: ${msg.reaction?.emoji || '👍'}]` :
-        msg.type === 'unsupported' ? '[Unsupported message type — open WhatsApp to view]' :
+        msg.type === 'system'   ? `[System: ${msg.system?.body || 'conversation update'}]` :
+        msg.type === 'unsupported'
+          ? (unsupportedReason ? `[Unsupported: ${unsupportedReason}]` : '[Unsupported message type — open WhatsApp to view]')
+          :
         '[Message]';
 
       // ── Log inbound message for admin conversations view ─────────────────────
@@ -7063,8 +7097,10 @@ Respond with ONLY a JSON array (no prose, no markdown):
       const textLower = text.toLowerCase();
 
       // ── Skip bot processing for non-conversational message types ─────────────
-      // Reactions, stickers are passive signals — do not reply, just log.
-      if (msgType === 'reaction' || msgType === 'sticker') {
+      // Reactions/stickers are passive signals; system messages are account
+      // notices (e.g. customer changed number); unsupported messages have no
+      // content the bot can act on — log them but never auto-reply.
+      if (msgType === 'reaction' || msgType === 'sticker' || msgType === 'system' || msgType === 'unsupported') {
         console.log(`[WhatsApp] Skipping bot reply for ${msgType} from +${from}`);
         return;
       }
