@@ -10,11 +10,24 @@ client-rendered React SPA route (eagerly bundled into the main entry chunk).
 
 ## Mobile hero is text, not an image
 **Rule:** Do NOT add a hero `<img>` preload to `client/index.html` for mobile.
-The mobile hero is the purely typographic "TMG" wordmark (`font-serif`), so the
-LCP element is text/font — preloading a work photo just wastes critical-window
-bandwidth and competes with the real LCP.
+The mobile hero is the purely typographic "TMG" wordmark, so the LCP element is
+text — preloading a work photo just wastes critical-window bandwidth.
 **Why:** A stale preload (wrong path `/work/...` vs actual `/images/work/...`)
 for a non-existent mobile hero image was hurting LCP.
+
+## Splash wordmark MUST equal the real hero wordmark (same SYSTEM font)
+**Rule:** The inline `#splash-tmg` "TMG" in `client/index.html` and the React
+hero (`.hero-h1-responsive`, h1 in LandingCinematic) MUST be pixel-identical:
+same SYSTEM-only font stack (`-apple-system,system-ui,'Segoe UI',Roboto,Arial,
+sans-serif`), size clamp, weight, italic, letter-spacing, line-height. No web
+font (no Inter, no Teko/`font-serif`) on the wordmark.
+**Why:** Splash used Inter, hero used `font-serif`→Teko (async web font, italic/
+900 not even loaded). Different font/size meant the revealed hero was a NEW,
+LARGER, LATER contentful paint that superseded the splash → LCP 4.7s. Matching
+them in an instant system font locks LCP to the early splash paint (1.5s); the
+revealed hero is the same element so it never becomes a new LCP candidate.
+**How to apply:** Section titles / ghost "built properly." text keep Teko on
+purpose — only the giant hero wordmark must be system font.
 
 ## Deferred third-party trackers must stay reliable
 gtag.js (in `index.html`) and Meta Pixel (`initMetaPixel` in `main.tsx`, called
@@ -42,17 +55,19 @@ inline-styled splash in `client/index.html` paints instantly (fast FCP).
 **Rule:** With async CSS you MUST stop the unstyled→styled reflow from being
 recorded as CLS — even *behind* the opaque fixed splash the Layout Instability
 API still counts it. The correct shape (in `main.tsx`):
-(1) MOUNT React immediately so its JS parse/execute overlaps the CSS download;
+(1) DEFER the React mount behind a **double requestAnimationFrame** so the inline
+splash paints FIRST (fast FCP) before the heavy synchronous render runs;
 (2) keep `#root` `visibility:hidden` until styles apply, then reveal — hidden
 elements don't paint so the reflow is never a shift; (3) gate the reveal on a
 **rAF poll of `window.__cssReady`** (race-proof — fires the instant CSS applies
 even if the link `load` event was missed) plus load/error listeners + a long
 last-resort timeout; (4) homepage crawler block `#seo-home`
 (`server/seo-pages.ts`) is inline **sr-only** (absolute/1px/clip).
-**Why:** Async CSS without (4) took CLS 0 → 0.385. Then DELAYING the mount until
-CSS-ready fixed CLS but serialized CSS→JS→paint and blew LCP to 5.3s. Mounting
-immediately + hiding `#root` parallelizes the work: CLS stays ~0 AND LCP drops
-back. NEVER reveal unstyled content on the fallback path or CLS returns.
+**Why:** Async CSS without (4) took CLS 0 → 0.385. Mounting React synchronously
+at module eval blocked the splash's first paint → FCP regressed to 2.6s; the
+double-rAF defer restored FCP to 1.5s. LCP is held early by the splash==hero
+system-font match (see above), so deferring the mount no longer risks LCP.
+NEVER reveal unstyled content on the fallback path or CLS returns.
 
 ## manualChunks: isolate tiny shared utils or they drag a big chunk eager
 `clsx`/`class-variance-authority`/`tailwind-merge` (used by every eager shadcn
@@ -65,7 +80,17 @@ forcing 419KB of chart code onto the homepage critical path + its modulepreload.
 dist/public/assets/index-*.js`) must have NO `import{…}from"./vendor-charts-*.js"`
 static import; recharts should load only via the lazy admin pages.
 
-## Future work (not yet done)
-Lazy-mount below-the-fold sections of LandingCinematic (intersection/idle) to
-cut initial JS execution + long main-thread tasks. Left undone — larger refactor
-on a ~2.5k-line file.
+## Below-the-fold sections are progressively revealed (TBT)
+Only `<Hero/>` renders eagerly; everything below it is wrapped in
+`<ProgressiveReveal>` in LandingCinematic. It renders nothing until it "starts"
+(requestIdleCallback 1500ms OR first scroll/pointerdown), then mounts ONE child
+per animation frame so each section is its own short task instead of one giant
+blocking render.
+**Rule:** Any in-page hash link in the hero (`#package`/`#services`/
+`#assembly-scroll`/`#business`) points INTO deferred content, so it MUST call
+`revealAndScrollTo(id)` (dispatches `tmg:reveal-all` → ProgressiveReveal mounts
+everything immediately, then rAF-polls for the target and scrolls). A plain
+`href="#..."` would fail to scroll before the target mounts.
+**Why:** Eager full-homepage render gave TBT 580ms / 7 long tasks once FCP+LCP
+were green. framer-motion stays eager (hero uses it); ThreeFurnitureScene is
+already React.lazy.

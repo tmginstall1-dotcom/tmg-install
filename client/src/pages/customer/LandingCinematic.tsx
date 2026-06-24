@@ -7,7 +7,7 @@ import {
   useReducedMotion,
   type MotionValue,
 } from "framer-motion";
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense, Children, type ReactNode } from "react";
 import { ArrowRight, ArrowUpRight, MessageCircle } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 import { useSEO } from "@/hooks/use-seo";
@@ -61,6 +61,85 @@ function useIsMobile() {
     return () => mq.removeEventListener("change", update);
   }, []);
   return isMobile;
+}
+
+/* Fired when something needs ALL deferred content mounted immediately — e.g. an
+   in-page hash link in the hero that points at a below-the-fold section. */
+const REVEAL_ALL_EVENT = "tmg:reveal-all";
+
+/* revealAndScrollTo — used by the hero's in-page nav links. Their targets live
+   inside <ProgressiveReveal>, so before navigating we force every deferred
+   section to mount, then scroll to the target once it exists in the DOM. */
+function revealAndScrollTo(id: string) {
+  window.dispatchEvent(new Event(REVEAL_ALL_EVENT));
+  let tries = 0;
+  const tryScroll = () => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (tries++ < 30) requestAnimationFrame(tryScroll);
+  };
+  requestAnimationFrame(tryScroll);
+}
+
+/* ProgressiveReveal — keeps the heavy below-the-fold sections OUT of the initial
+   render so the first paint/execute only covers the above-the-fold hero, then
+   mounts the children ONE PER FRAME instead of all at once. Rendering each
+   section in its own short task (rather than one giant synchronous task) keeps
+   every task under the 50ms "long task" threshold, which is exactly what Total
+   Blocking Time penalises. Revealing starts the moment the browser goes idle, or
+   the instant the user scrolls/interacts (whichever is first), so the work lands
+   off the critical path while the hero is already interactive. */
+function ProgressiveReveal({ children }: { children: ReactNode }) {
+  const items = Children.toArray(children);
+  const total = items.length;
+  const [started, setStarted] = useState(false);
+  const [count, setCount] = useState(0);
+
+  // Decide WHEN to start mounting the below-the-fold content.
+  useEffect(() => {
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      setStarted(true);
+    };
+    // A hash link into deferred content needs everything mounted NOW.
+    const mountAllNow = () => {
+      done = true;
+      setStarted(true);
+      setCount(total);
+    };
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const cancel = (window as any).cancelIdleCallback as
+      | ((id: number) => void)
+      | undefined;
+    const id = ric ? ric(go, { timeout: 1500 }) : window.setTimeout(go, 300);
+    window.addEventListener("scroll", go, { once: true, passive: true });
+    window.addEventListener("pointerdown", go, { once: true, passive: true });
+    window.addEventListener(REVEAL_ALL_EVENT, mountAllNow);
+    return () => {
+      window.removeEventListener("scroll", go);
+      window.removeEventListener("pointerdown", go);
+      window.removeEventListener(REVEAL_ALL_EVENT, mountAllNow);
+      if (ric && cancel) cancel(id);
+      else clearTimeout(id as unknown as number);
+    };
+  }, [total]);
+
+  // Once started, reveal one more section on each animation frame so no single
+  // render task is large enough to block the main thread.
+  useEffect(() => {
+    if (!started || count >= total) return;
+    const raf = requestAnimationFrame(() => setCount((c) => c + 1));
+    return () => cancelAnimationFrame(raf);
+  }, [started, count, total]);
+
+  return <>{items.slice(0, count)}</>;
 }
 
 /* ─────────────────────── Visual primitives ─────────────────────── */
@@ -426,16 +505,16 @@ function Hero() {
 
       {/* Mid-left mini nav tag — DESKTOP ONLY (was overlapping ghost text on mobile) */}
       <div className="hidden md:flex absolute top-[55%] left-[8%] z-20 flex-col gap-1.5 items-start">
-        <a href="#package">
+        <a href="#package" onClick={(e) => { e.preventDefault(); revealAndScrollTo("package"); }}>
           <Tag accent>PACKAGE →</Tag>
         </a>
-        <a href="#services">
+        <a href="#services" onClick={(e) => { e.preventDefault(); revealAndScrollTo("services"); }}>
           <Tag>SERVICES →</Tag>
         </a>
-        <a href="#assembly-scroll">
+        <a href="#assembly-scroll" onClick={(e) => { e.preventDefault(); revealAndScrollTo("assembly-scroll"); }}>
           <Tag>PROCESS →</Tag>
         </a>
-        <a href="#business">
+        <a href="#business" onClick={(e) => { e.preventDefault(); revealAndScrollTo("business"); }}>
           <Tag>BUSINESS →</Tag>
         </a>
       </div>
@@ -2548,17 +2627,21 @@ export default function LandingCinematic() {
       <ScrollProgress />
       <main id="main-content">
         <Hero />
-        <Marquee />
-        <FeaturedPackage />
-        <AssemblyScroll />
-        <Services />
-        <WhyTMG />
-        <IndexStrip />
-        <Process />
-        <BusinessSection />
-        <FinalCTA />
+        <ProgressiveReveal>
+          <Marquee />
+          <FeaturedPackage />
+          <AssemblyScroll />
+          <Services />
+          <WhyTMG />
+          <IndexStrip />
+          <Process />
+          <BusinessSection />
+          <FinalCTA />
+        </ProgressiveReveal>
       </main>
-      <Footer />
+      <ProgressiveReveal>
+        <Footer />
+      </ProgressiveReveal>
       </div>
       <StickyMobileCTA />
     </div>
