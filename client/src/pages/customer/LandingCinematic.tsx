@@ -361,7 +361,7 @@ function Hero() {
           {/* SEO H1 — visible "TMG" + sr-only keyword extension so crawlers
               read a real, keyword-rich H1 without disturbing the design. */}
           <h1
-            className="font-serif italic tracking-[-0.04em] leading-[0.82] text-black hero-h1-responsive"
+            className="italic tracking-[-0.04em] leading-[0.82] text-black hero-h1-responsive"
             data-testid="hero-headline"
           >
             <span aria-hidden="true">TMG</span>

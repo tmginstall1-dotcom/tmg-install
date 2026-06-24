@@ -20,22 +20,25 @@ function reveal() {
   requestAnimationFrame(() => requestAnimationFrame(() => hideSplash()));
 }
 
-// In production the main stylesheet is loaded non-blocking (see server/static.ts)
-// so the inline-styled splash paints instantly (fast FCP). The challenge:
-//   1. If we PAINT the app before that CSS applied, it renders unstyled and then
-//      reflows when the stylesheet arrives — the Layout Instability API records
-//      that reflow as CLS even though it happens behind the opaque splash.
-//   2. If we DELAY the React mount until CSS is ready, all the JS parse/execute
-//      work is pushed AFTER the CSS download, serializing the critical path and
-//      blowing up LCP (the real hero only paints after CSS + all JS run).
+// Performance strategy (the "/" homepage is a heavy client-rendered SPA):
 //
-// So we do both in parallel: MOUNT React immediately (its JS parses/executes
-// while the stylesheet is still downloading) but keep #root visually HIDDEN
-// until the stylesheet has applied. Hidden elements don't paint, so the
-// unstyled->styled reflow is never recorded as a layout shift. The instant the
-// CSS is ready we reveal #root — by then React has usually already rendered, so
-// the styled hero paints right away (fast LCP) with zero CLS. In dev — or any
-// page with no deferred stylesheet — CSS is already present, so we reveal at once.
+// FCP/LCP come from the inline #splash in index.html — its giant "TMG" wordmark
+// uses a SYSTEM font (no web font) so it paints instantly from HTML, and it is
+// pixel-identical to the React hero (.hero-h1-responsive). Because the revealed
+// hero matches the splash exactly, it never becomes a new/larger LCP candidate,
+// so LCP stays locked to that early splash paint regardless of when React or the
+// stylesheet finish.
+//
+// Two things to get right here:
+//   1. FCP — do NOT run the heavy synchronous React render before the browser
+//      has painted the splash. We yield with a double rAF first so the splash
+//      paints, THEN mount.
+//   2. CLS — in production the main stylesheet is non-blocking (see
+//      server/static.ts). If we revealed #root before that CSS applied, the
+//      unstyled->styled reflow would be recorded as a layout shift (even behind
+//      the opaque splash). So we keep #root hidden until the stylesheet applies,
+//      then reveal. In dev — or any page with no deferred stylesheet — CSS is
+//      already present so we reveal immediately.
 (function mountAndRevealWhenStyled() {
   const asyncCss = document.querySelector(
     "link[data-async-css]",
@@ -46,15 +49,6 @@ function reveal() {
   // whether we caught the link's `load` event in time.
   const isStyled = () => !asyncCss || (window as any).__cssReady === true;
 
-  // Mount NOW so React's parse/execute overlaps the CSS download.
-  if (!isStyled()) rootEl.style.visibility = "hidden";
-  createRoot(rootEl).render(<App />);
-
-  if (isStyled()) {
-    reveal();
-    return;
-  }
-
   let done = false;
   const go = () => {
     if (done) return;
@@ -62,28 +56,39 @@ function reveal() {
     reveal();
   };
 
-  // Primary, race-proof gate: poll the global flag every frame. This fires the
-  // instant CSS is applied even if the link's `load` event was missed (e.g. it
-  // resolved between our check above and the listener below), so we never wait
-  // on the safety timeout in the common case.
-  const poll = () => {
-    if (done) return;
+  const mount = () => {
+    // Keep the app hidden until the deferred stylesheet has applied so the
+    // unstyled->styled reflow (behind the splash) is never counted as CLS.
+    if (!isStyled()) rootEl.style.visibility = "hidden";
+    createRoot(rootEl).render(<App />);
+
     if (isStyled()) {
       go();
       return;
     }
-    requestAnimationFrame(poll);
-  };
-  requestAnimationFrame(poll);
 
-  // Backups: the link's own load event, and an error path so a stylesheet that
-  // fails to load can never leave the app permanently hidden (rAF also pauses
-  // in background tabs, which don't paint anyway).
-  asyncCss!.addEventListener("load", go, { once: true });
-  asyncCss!.addEventListener("error", go, { once: true });
-  // Absolute last resort only — by this point CSS has effectively always
-  // applied; revealing is strictly better than a blank screen.
-  setTimeout(go, 6000);
+    // Race-proof gate: poll the global flag every frame so we reveal the instant
+    // CSS applies even if the link's `load` event fired before we listened.
+    const poll = () => {
+      if (done) return;
+      if (isStyled()) {
+        go();
+        return;
+      }
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+
+    // Backups: the link's own load/error events (error so a failed stylesheet
+    // can never leave the app permanently hidden) + an absolute last resort.
+    asyncCss!.addEventListener("load", go, { once: true });
+    asyncCss!.addEventListener("error", go, { once: true });
+    setTimeout(go, 6000);
+  };
+
+  // Let the browser paint the inline splash FIRST (fast FCP) before running the
+  // heavy synchronous React render. Two rAFs guarantee a committed paint.
+  requestAnimationFrame(() => requestAnimationFrame(mount));
 })();
 
 // Defer third-party tracking (Meta Pixel) until the browser is idle or the

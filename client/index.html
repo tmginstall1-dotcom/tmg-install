@@ -382,6 +382,10 @@
         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
       }
       #splash-tmg {
+        /* System-only font stack (NO Inter/Teko web font) so the wordmark
+           paints instantly from HTML and never swaps — this is the LCP element.
+           Must stay pixel-identical to the React hero (.hero-h1-responsive). */
+        font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
         margin: 0; font-style: italic; font-weight: 900;
         font-size: clamp(96px, 26vw, 360px); line-height: 0.82;
         letter-spacing: -0.04em; color: #000;

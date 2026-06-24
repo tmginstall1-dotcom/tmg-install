@@ -182,6 +182,12 @@ html.app-no-overscroll body {
      iOS Safari (with both bars visible) without altering the
      desktop appearance. */
   .hero-h1-responsive {
+    /* System-only stack (NOT the Teko/Inter web fonts) so this wordmark paints
+       instantly and is pixel-identical to the inline #splash-tmg in index.html.
+       That makes the splash the stable LCP element — the revealed hero is the
+       same element/size, so it never becomes a new, later LCP candidate. */
+    font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+    font-style: italic;
     font-size: clamp(96px, 26vw, 360px);
     font-weight: 900;
   }
