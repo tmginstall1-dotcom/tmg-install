@@ -4121,6 +4121,12 @@ ${systemPrompt}` });
         customerName:     z.string().min(1),
         customerPhone:    z.string().min(6),
         customerEmail:    z.string().email().optional().nullable(),
+        // Commercial / company billing — carried over from a saved customer
+        // profile so a returning company customer's details persist on the job.
+        invoiceType:      z.enum(['residential', 'commercial']).optional(),
+        companyName:      z.string().optional().nullable(),
+        companyUen:       z.string().optional().nullable(),
+        billingAddress:   z.string().optional().nullable(),
         serviceAddress:   z.string().min(1),
         dropoffAddress:   z.string().optional().nullable(),
         isRelocation:     z.boolean().optional().default(false),
@@ -4212,15 +4218,29 @@ ${systemPrompt}` });
         }] : []),
       ];
 
+      // Derive commercial invoice flag — explicit from client, else inferred
+      // from a company name being present (carried over from a saved profile).
+      const jobInvoiceType: "residential" | "commercial" =
+        body.invoiceType === "commercial" || (body.companyName?.trim() ? true : false)
+          ? "commercial"
+          : "residential";
+
       const quote = await storage.createQuote(
         {
           name: body.customerName,
           email: customerEmail,
           phone: body.customerPhone,
-          companyName: undefined,
+          companyName: body.companyName?.trim() || undefined,
+          companyUen: body.companyUen?.trim() || undefined,
+          billingAddress: body.billingAddress?.trim() || undefined,
         },
         {
           referenceNo:         refNo,
+          // Commercial / company billing carried over from a saved profile.
+          invoiceType:         jobInvoiceType,
+          billingCompanyName:  body.companyName?.trim() || undefined,
+          billingCompanyUen:   body.companyUen?.trim() || undefined,
+          billingAddress:      body.billingAddress?.trim() || undefined,
           serviceAddress:      body.serviceAddress,
           dropoffAddress:      firstDropoff?.address || body.dropoffAddress || undefined,
           pickupAddress:       body.isRelocation ? (firstPickup?.address || body.serviceAddress) : undefined,

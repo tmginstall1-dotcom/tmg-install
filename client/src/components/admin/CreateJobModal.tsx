@@ -14,7 +14,7 @@ import {
   User, MapPin, Calendar, Clock, Package,
   Plus, Trash2, CheckCircle2, ExternalLink, Sparkles, Upload,
   X, FileImage, AlertCircle, ChevronDown, ChevronUp,
-  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle, Route, Search,
+  ArrowRight, Truck, Wrench, Mail, Tag, CheckCircle, XCircle, Route, Search, Building2,
 } from "lucide-react";
 import { computeMultiStopRelocationPrice, type MultiStopPriceResult } from "@shared/pricing";
 import type { QuoteStop } from "@shared/schema";
@@ -140,6 +140,11 @@ export function CreateJobModal({ open, onClose }: Props) {
   const [customerName, setCustomerName]       = useState("");
   const [customerPhone, setCustomerPhone]     = useState("");
   const [customerEmail, setCustomerEmail]     = useState("");
+  // Commercial / company billing — carried over from a saved customer profile
+  // so a returning company customer's details fill in automatically.
+  const [companyName, setCompanyName]         = useState("");
+  const [companyUen, setCompanyUen]           = useState("");
+  const [billingAddress, setBillingAddress]   = useState("");
 
   // Saved-customer lookup (re-use a returning customer without re-typing)
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
@@ -235,9 +240,19 @@ export function CreateJobModal({ open, onClose }: Props) {
     setCustomerPhone(p);
     // Skip placeholder emails auto-generated for WhatsApp-only customers.
     setCustomerEmail(c.email && !c.email.endsWith("@tmginstall.com") ? c.email : "");
+    // Carry over the company / commercial billing profile so a returning
+    // company customer doesn't have to re-enter it.
+    setCompanyName(c.companyName || "");
+    setCompanyUen(c.companyUen || "");
+    setBillingAddress(c.billingAddress || "");
     setCustomerPickerOpen(false);
     setCustomerSearch("");
-    toast({ title: "Customer loaded", description: `${c.name}'s saved details have been filled in.` });
+    toast({
+      title: "Customer loaded",
+      description: c.companyName
+        ? `${c.name}'s saved details and company profile (${c.companyName}) have been filled in.`
+        : `${c.name}'s saved details have been filled in.`,
+    });
   };
 
   const itemsTotal = items.reduce((sum, item) => {
@@ -464,6 +479,12 @@ export function CreateJobModal({ open, onClose }: Props) {
       customerName:     customerName.trim(),
       customerPhone:    customerPhone.trim(),
       customerEmail:    customerEmail.trim() || null,
+      // Commercial / company billing — when a company name is present the job
+      // is created as a commercial invoice with these details.
+      invoiceType:      companyName.trim() ? "commercial" : "residential",
+      companyName:      companyName.trim() || null,
+      companyUen:       companyUen.trim() || null,
+      billingAddress:   billingAddress.trim() || null,
       serviceAddress:   isRelocation ? (firstPickup?.address || serviceAddress.trim()) : serviceAddress.trim(),
       dropoffAddress:   isRelocation ? (firstDropoff?.address || null) : null,
       isRelocation,
@@ -504,6 +525,7 @@ export function CreateJobModal({ open, onClose }: Props) {
   const resetForm = () => {
     setJobType("standard");
     setCustomerName(""); setCustomerPhone(""); setCustomerEmail("");
+    setCompanyName(""); setCompanyUen(""); setBillingAddress("");
     setCustomerPickerOpen(false); setCustomerSearch("");
     setServiceAddress(""); setDropoffAddress("");
     setStops([makeStop("pickup"), makeStop("dropoff")]);
@@ -944,6 +966,54 @@ export function CreateJobModal({ open, onClose }: Props) {
                     placeholder="customer@email.com"
                     className="h-9 text-sm border-zinc-300"
                   />
+                </div>
+
+                {/* Company / commercial billing — optional. When a company
+                    name is set the job is created as a commercial invoice and
+                    these details are used for billing. Auto-filled from a saved
+                    customer's company profile. */}
+                <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
+                    <Building2 className="w-3.5 h-3.5" />
+                    Company / commercial billing (optional)
+                  </div>
+                  <div>
+                    <Label className="text-xs text-zinc-500 mb-1.5 block">Company name</Label>
+                    <Input
+                      data-testid="input-company-name"
+                      value={companyName}
+                      onChange={e => setCompanyName(e.target.value)}
+                      placeholder="e.g. Acme Pte Ltd"
+                      className="h-9 text-sm border-zinc-300 bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-zinc-500 mb-1.5 block">UEN</Label>
+                      <Input
+                        data-testid="input-company-uen"
+                        value={companyUen}
+                        onChange={e => setCompanyUen(e.target.value)}
+                        placeholder="e.g. 20242415 6H"
+                        className="h-9 text-sm border-zinc-300 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-zinc-500 mb-1.5 block">Billing address</Label>
+                      <Input
+                        data-testid="input-billing-address"
+                        value={billingAddress}
+                        onChange={e => setBillingAddress(e.target.value)}
+                        placeholder="Billing address (if different)"
+                        className="h-9 text-sm border-zinc-300 bg-white"
+                      />
+                    </div>
+                  </div>
+                  {companyName.trim() && (
+                    <p className="text-[11px] text-zinc-500">
+                      This job will be created as a <strong>commercial invoice</strong>.
+                    </p>
+                  )}
                 </div>
               </div>
             </Section>
