@@ -364,34 +364,55 @@
     <link rel="prefetch" href="/estimate" as="document" />
     <!-- Instant splash — visible before JS loads -->
     <style>
-      html, body { margin: 0; padding: 0; background: #fff; overflow-x: clip; }
+      /* The splash IS a fully inline-styled copy of the mobile hero so the
+         "TMG" wordmark paints as First/Largest Contentful Paint immediately
+         from HTML — before the main CSS or JS bundle has loaded. The fonts and
+         sizes mirror the React hero (Inter/system, weight 900 italic, same
+         clamp() size) so revealing the real app causes no visible jump. */
+      html, body { margin: 0; padding: 0; background: #fafaf7; overflow-x: clip; }
       #splash {
         position: fixed; inset: 0; z-index: 9999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        background: #fff;
-        gap: 18px;
+        background: #fafaf7; color: #0a0a0a;
+        display: flex; align-items: flex-start; justify-content: center;
+        -webkit-font-smoothing: antialiased;
       }
-      #splash-logo {
-        font-family: 'Teko', Arial, sans-serif;
-        font-size: 26px; font-weight: 700; letter-spacing: 0.06em;
-        color: #000; text-transform: uppercase;
+      #splash-hero {
+        width: 100%; max-width: 640px; text-align: center;
+        padding: 0 16px; margin-top: 22vh;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
       }
-      #splash-bar {
-        width: 40px; height: 2px;
-        background: #000;
-        animation: expand 0.9s ease-out forwards;
-        transform-origin: left;
+      #splash-tmg {
+        margin: 0; font-style: italic; font-weight: 900;
+        font-size: clamp(96px, 26vw, 360px); line-height: 0.82;
+        letter-spacing: -0.04em; color: #000;
       }
-      @keyframes expand {
-        from { transform: scaleX(0); opacity: 0.3; }
-        to   { transform: scaleX(1); opacity: 1; }
+      #splash-sub {
+        margin-top: 10px; font-size: 11px; font-weight: 700;
+        letter-spacing: 0.42em; text-transform: uppercase;
+      }
+      #splash-sub .dot { color: #2af56a; }
+      #splash-loc {
+        margin-top: 4px; font-size: 10px; font-weight: 700;
+        letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.6;
+      }
+      #splash-cta {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        margin-top: 20px; width: 100%; max-width: 320px; padding: 16px 24px;
+        background: #2af56a; color: #0a0a0a; border: 2px solid #0a0a0a;
+        font-size: 14px; font-weight: 800; letter-spacing: 0.18em;
+        text-transform: uppercase; text-decoration: none;
+        box-shadow: 0 6px 0 rgba(0,0,0,0.92);
       }
     </style>
   </head>
   <body>
     <div id="splash">
-      <div id="splash-logo">TMG Install</div>
-      <div id="splash-bar"></div>
+      <div id="splash-hero">
+        <h1 id="splash-tmg">TMG</h1>
+        <div id="splash-sub">Install <span class="dot">·</span> Dismantle <span class="dot">·</span> Relocate</div>
+        <div id="splash-loc">Singapore — island-wide</div>
+        <a id="splash-cta" href="/estimate">Get my free quote →</a>
+      </div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

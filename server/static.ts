@@ -3,6 +3,27 @@ import fs from "fs";
 import path from "path";
 import { injectHomepageRating, injectHomepageContent } from "./seo-pages";
 
+/**
+ * Make the main Vite CSS bundle load WITHOUT blocking first paint.
+ *
+ * Vite emits `<link rel="stylesheet" href="/assets/index-*.css">` in <head>,
+ * which is render-blocking — on slow mobile connections it holds back even the
+ * inline-styled splash screen, pushing FCP/LCP out by seconds. We rewrite it to
+ * the well-known "media=print onload" async pattern and flag it with
+ * `data-async-css` + `window.__cssReady` so the splash (in main.tsx) knows when
+ * the real styles have applied and can reveal the app without a flash. A
+ * <noscript> fallback keeps styling for non-JS clients.
+ */
+function deferMainStylesheet(html: string): string {
+  return html.replace(
+    /<link rel="stylesheet"((?:\s+crossorigin)?)\s+href="(\/assets\/index-[^"]+\.css)"\s*\/?>/,
+    (_m, cross, href) =>
+      `<link rel="stylesheet"${cross} href="${href}" media="print" ` +
+      `onload="this.media='all';window.__cssReady=true" data-async-css="1">` +
+      `<noscript><link rel="stylesheet"${cross} href="${href}"></noscript>`,
+  );
+}
+
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
   if (!fs.existsSync(distPath)) {
@@ -61,7 +82,9 @@ export function serveStatic(app: Express) {
   // doesn't change between deploys). This removes a ~10-50ms disk-read off
   // every cold-cache page request and improves TTFB.
   const indexHtmlPath = path.resolve(distPath, "index.html");
-  const indexHtmlPublic = fs.readFileSync(indexHtmlPath, "utf-8");
+  const indexHtmlPublic = deferMainStylesheet(
+    fs.readFileSync(indexHtmlPath, "utf-8"),
+  );
   const indexHtmlAdmin = indexHtmlPublic
     .replace(
       `<link rel="manifest" href="/manifest.json" />`,
