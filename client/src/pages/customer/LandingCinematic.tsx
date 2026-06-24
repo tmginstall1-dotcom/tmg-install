@@ -2546,16 +2546,18 @@ export default function LandingCinematic() {
       <div className="relative z-10">
       <PromoBar />
       <ScrollProgress />
-      <Hero />
-      <Marquee />
-      <FeaturedPackage />
-      <AssemblyScroll />
-      <Services />
-      <WhyTMG />
-      <IndexStrip />
-      <Process />
-      <BusinessSection />
-      <FinalCTA />
+      <main id="main-content">
+        <Hero />
+        <Marquee />
+        <FeaturedPackage />
+        <AssemblyScroll />
+        <Services />
+        <WhyTMG />
+        <IndexStrip />
+        <Process />
+        <BusinessSection />
+        <FinalCTA />
+      </main>
       <Footer />
       </div>
       <StickyMobileCTA />

@@ -1,0 +1,21 @@
+# TMG Install
+
+> TMG Install (The Moving Guy Pte Ltd) is a Singapore furniture installation, assembly, dismantling and relocation service. Customers get an itemised, upfront quote online in about 60 seconds — no phone calls and no site survey for most jobs. Coverage is island-wide for HDB, condo, landed and commercial addresses.
+
+TMG Install assembles and installs furniture from Taobao, IKEA, Castlery, Lazada, Shopee, Courts and HipVan. Services include wardrobe installation, bed frame assembly, TV wall mounting, sofa assembly, mattress setup and disposal, office fit-outs and gym equipment installation. Dismantle + reinstall can be bundled in one job for a 40% discount on the dismantle portion. Payment (PayNow QR, bank transfer or card) is only collected after the customer confirms the quote.
+
+## Main pages
+
+- [Home](https://tmginstall.com/): Overview of installation, dismantling and relocation services in Singapore.
+- [Get a quote](https://tmginstall.com/estimate): Online estimator that returns an itemised, upfront price in about 60 seconds.
+- [Terms & conditions](https://tmginstall.com/terms): Service terms, payment terms and dispute-protection policy.
+
+## Contact
+
+- WhatsApp: https://wa.me/6580880757
+- Phone: +65 8088 0757
+- Email: sales@tmginstall.com
+
+## Optional
+
+- [Sitemap](https://tmginstall.com/sitemap.xml): Full list of indexable pages.
