@@ -2058,7 +2058,7 @@ export default function AdminQuoteDetail() {
  ? `
  <p class="name">${esc(billingCompanyName || q.customer?.name || "—")}</p>
  ${billingCompanyUen ? `<p class="kv"><span class="k">UEN</span><span class="v">${esc(billingCompanyUen)}</span></p>` : ""}
- ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
+ ${billingAddress ? `<p class="kv"><span class="k">Address</span><span class="v">${escAddr(billingAddress)}</span></p>` : ""}
  ${q.customer?.name && billingCompanyName ? `<p class="kv" style="margin-top:6px;"><span class="k">Attn</span><span class="v">${esc(q.customer.name)}</span></p>` : ""}
  ${q.customer?.phone ? `<p class="kv"><span class="k">Phone</span><span class="v">${esc(q.customer.phone)}</span></p>` : ""}
  ${showCustomerEmail ? `<p class="kv"><span class="k">Email</span><span class="v">${esc(q.customer.email)}</span></p>` : ""}
@@ -2066,7 +2066,7 @@ export default function AdminQuoteDetail() {
  `
  : `
  <p class="name">${esc(q.customer?.name || "—")}</p>
- ${billingAddress ? `<p>${escAddr(billingAddress)}</p>` : ""}
+ ${billingAddress ? `<p class="kv"><span class="k">Address</span><span class="v">${escAddr(billingAddress)}</span></p>` : ""}
  ${q.customer?.phone ? `<p class="kv"><span class="k">Phone</span><span class="v">${esc(q.customer.phone)}</span></p>` : ""}
  ${showCustomerEmail ? `<p class="kv"><span class="k">Email</span><span class="v">${esc(q.customer.email)}</span></p>` : ""}
  `;

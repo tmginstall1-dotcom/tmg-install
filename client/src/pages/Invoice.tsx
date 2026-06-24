@@ -363,16 +363,16 @@ export default function Invoice() {
                           {data.billingCompanyName || data.customerName}
                         </div>
                         {data.billingCompanyUen && (
-                          <div className="text-[12px] text-gray-700 mt-0.5">UEN: {data.billingCompanyUen}</div>
+                          <div className="text-[12px] text-gray-700 mt-0.5"><span className="font-semibold">UEN:</span> {data.billingCompanyUen}</div>
                         )}
                         {data.billingAddress && (
-                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line">{data.billingAddress}</div>
+                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line"><span className="font-semibold">Address:</span> {data.billingAddress}</div>
                         )}
                         {data.billingCompanyName && data.customerName && (
-                          <div className="text-[12px] text-gray-700 mt-1">Attn: {data.customerName}</div>
+                          <div className="text-[12px] text-gray-700 mt-1"><span className="font-semibold">Attn:</span> {data.customerName}</div>
                         )}
-                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerPhone}</div>}
-                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerEmail}</div>}
+                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5"><span className="font-semibold">Phone:</span> {data.customerPhone}</div>}
+                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5"><span className="font-semibold">Email:</span> {data.customerEmail}</div>}
                         {data.poNumber && (
                           <div className="text-[12px] text-gray-700 mt-1.5"><span className="font-semibold">PO No.:</span> {data.poNumber}</div>
                         )}
@@ -381,10 +381,10 @@ export default function Invoice() {
                       <>
                         <div className="text-sm font-semibold text-gray-900" data-testid="text-invoice-customer-name">{data.customerName}</div>
                         {data.billingAddress && (
-                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line">{data.billingAddress}</div>
+                          <div className="text-[12px] text-gray-700 mt-1 whitespace-pre-line"><span className="font-semibold">Address:</span> {data.billingAddress}</div>
                         )}
-                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerPhone}</div>}
-                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5">{data.customerEmail}</div>}
+                        {data.customerPhone && <div className="text-[12px] text-gray-600 mt-0.5"><span className="font-semibold">Phone:</span> {data.customerPhone}</div>}
+                        {showEmail && <div className="text-[12px] text-gray-600 mt-0.5"><span className="font-semibold">Email:</span> {data.customerEmail}</div>}
                       </>
                     )}
                   </div>
