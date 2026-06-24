@@ -1,3 +1,4 @@
+import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState, useMemo } from "react";
 import {
   MapContainer,

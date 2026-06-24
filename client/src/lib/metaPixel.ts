@@ -22,6 +22,13 @@ declare global {
 
 let initialised = false;
 
+/**
+ * Events fired before the pixel script has loaded (e.g. because init is now
+ * deferred until the browser is idle / the user interacts) are buffered here
+ * and flushed the moment the pixel is ready, so no conversion events are lost.
+ */
+const pending: Array<{ name: string; params?: Record<string, any> }> = [];
+
 export function initMetaPixel(): void {
   if (initialised || typeof window === "undefined") return;
   if (!PIXEL_ID) return;
@@ -46,10 +53,26 @@ export function initMetaPixel(): void {
 
   window.fbq("init", PIXEL_ID);
   window.fbq("track", "PageView");
+
+  // Flush any events that were fired before the pixel finished loading.
+  while (pending.length) {
+    const ev = pending.shift()!;
+    if (ev.params) {
+      window.fbq("track", ev.name, ev.params);
+    } else {
+      window.fbq("track", ev.name);
+    }
+  }
 }
 
 export function trackPixelEvent(name: string, params?: Record<string, any>): void {
-  if (typeof window === "undefined" || !window.fbq) return;
+  if (typeof window === "undefined") return;
+  // If the pixel isn't ready yet (init is deferred), buffer the event so it
+  // isn't lost — it will be flushed once initMetaPixel() runs.
+  if (!window.fbq) {
+    pending.push({ name, params });
+    return;
+  }
   if (params) {
     window.fbq("track", name, params);
   } else {

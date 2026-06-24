@@ -3,13 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18012639714"></script>
+    <!-- Google tag (gtag.js) — the external script is loaded only after the
+         browser is idle or the user first interacts, so it never competes with
+         first paint / LCP. The gtag() stub queues config + events immediately
+         and they flush as soon as the real script arrives, so conversion
+         tracking is unaffected. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'AW-18012639714');
+      (function () {
+        var loaded = false;
+        function loadGtag() {
+          if (loaded) return; loaded = true;
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=AW-18012639714';
+          document.head.appendChild(s);
+        }
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(loadGtag, { timeout: 5000 });
+        } else {
+          setTimeout(loadGtag, 3000);
+        }
+        ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach(function (evt) {
+          window.addEventListener(evt, loadGtag, { once: true, passive: true });
+        });
+        // Also load before the user leaves a quick no-interaction session so
+        // the pageview still has a chance to fire.
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'hidden') loadGtag();
+        });
+        window.addEventListener('pagehide', loadGtag, { once: true });
+      })();
     </script>
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
@@ -323,11 +350,10 @@
     <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
     <link rel="dns-prefetch" href="https://wa.me" />
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
-    <!-- Preload mobile hero image (LCP candidate) — small WebP variant for mobile,
-         responsive <picture> in Landing.tsx serves the right size on each device.
-         Media query matches Tailwind's `sm:hidden` breakpoint (<640px) so we
-         don't preload on tablets/desktops where the hero <img> is hidden. -->
-    <link rel="preload" href="/work/office-fitout-800.webp" as="image" type="image/webp" fetchpriority="high" media="(max-width: 639px)" />
+    <!-- Note: the mobile hero is purely typographic (the "TMG" wordmark), so
+         there is no hero <img> to preload on phones. Preloading a work photo
+         here previously wasted bandwidth in the critical window and competed
+         with the real LCP text/font, so it has been removed. -->
     <!-- Google Fonts: variable Inter (single small woff2 covers all weights 400-900)
          + Teko 600/700. Variable font replaces 6 separate weight files we used to
          load — typically ~70% smaller over the wire. Non-blocking. -->

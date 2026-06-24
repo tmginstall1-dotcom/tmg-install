@@ -34,3 +34,4 @@
 - [Invoice PDF rendering](invoice-pdf-rendering.md) — invoice PDF = SERVER-side headless Chromium render of the real page (cache-proof); Chromium via Nix system dep; keep print-color-adjust:exact + printBackground.
 - [Staff pricing strip](staff-pricing-strip.md) — strip quote pricing on EVERY non-admin response path incl. staff mutation endpoints (arrived/site-clock/stage/checkout); use quoteForCaller wrapper.
 - [Admin shell crash scope](admin-shell-crash.md) — a render throw in AdminSidebar/BottomNav/Topbar crashes the whole admin area post-login (login page is fine); dev workflow has no tsc so missing-import ReferenceErrors ship.
+- [Marketing homepage perf](marketing-perf-deferrals.md) — mobile hero is text (no img preload); defer gtag/Meta Pixel but buffer early events + add visibilitychange/pagehide; leaflet CSS only in GpsMap, never main.tsx.
