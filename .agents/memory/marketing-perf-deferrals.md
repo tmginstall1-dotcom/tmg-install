@@ -35,6 +35,21 @@ StaffManagement chunk); a global import dumps ~unused CSS into the homepage's
 critical CSS. Verify after build: leaflet CSS should be in `StaffManagement-*.css`,
 not `index-*.css`.
 
+## Async (non-blocking) main CSS — must gate React mount or CLS explodes
+The main Vite CSS link is rewritten to non-blocking (`media=print` onload swap,
+`data-async-css` + `window.__cssReady`) in `server/static.ts` (prod only) so the
+inline-styled splash in `client/index.html` paints instantly (FCP/LCP ~1.5s).
+**Rule:** With async CSS you MUST prevent the unstyled→styled reflow from being
+recorded as CLS — even though it happens *behind* the opaque fixed splash, the
+Layout Instability API still counts it. Two things make it work in lockstep:
+(1) `main.tsx` DELAYS `createRoot().render()` until the deferred stylesheet has
+applied (load event / `__cssReady`), with a ~3s fallback + immediate mount in
+dev; (2) the homepage crawler block `#seo-home` (`server/seo-pages.ts`) is inline
+**sr-only** (absolute/1px/clip) so it never paints visibly and never reflows.
+**Why:** Shipping async CSS without these took mobile CLS from 0 → 0.385 (CWV
+FAIL) while FCP/LCP improved — the deferred stylesheet applying caused the whole
+unstyled `#root` (app + the then-visible SEO block) to reflow.
+
 ## Future work (not yet done)
 Lazy-mount below-the-fold sections of LandingCinematic (intersection/idle) to
 cut initial JS execution + long main-thread tasks. Left undone — larger refactor

@@ -112,7 +112,7 @@ function homepageSeoBlock(): string {
   const guideLinks = GUIDE_PAGES
     .map(p => `<li><a href="/guides/${p.slug}">${esc(p.label)}</a></li>`)
     .join("");
-  return `<div id="seo-home" style="max-width:980px;margin:0 auto;padding:2rem 1.25rem;font-family:Inter,system-ui,-apple-system,sans-serif;color:#1a1a2e;line-height:1.6">
+  return `<div id="seo-home" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
   <p style="font-weight:800"><a href="/">TMG Install — The Moving Guy Pte Ltd</a></p>
   <h1>TMG Install — Furniture Installation &amp; Relocation Singapore</h1>
   <p><strong>TMG Install</strong>, operated by The Moving Guy Pte Ltd, is Singapore's trusted specialist for professional furniture installation, assembly, dismantling and relocation. We help homeowners, tenants, interior designers and offices set up their space quickly and safely — without the stress of doing it all yourself. Get an instant, upfront quote online in about 60 seconds: no site visit is needed for most jobs, and there are no hidden fees or surprise charges on the day.</p>

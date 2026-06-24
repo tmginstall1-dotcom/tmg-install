@@ -3,12 +3,6 @@ import App from "./App";
 import "./index.css";
 import { initMetaPixel } from "@/lib/metaPixel";
 
-createRoot(document.getElementById("root")!).render(<App />);
-
-// Hide the HTML splash screen. In production the main stylesheet is loaded
-// non-blocking (see server/static.ts), so we keep the inline-styled splash up
-// until that CSS has applied — otherwise the app would flash unstyled. In dev
-// (and if no deferred stylesheet exists) we hide as soon as React has painted.
 function hideSplash() {
   const splash = document.getElementById("splash");
   if (!splash) return;
@@ -17,29 +11,44 @@ function hideSplash() {
   setTimeout(() => splash.remove(), 300);
 }
 
-(function dismissSplashWhenStyled() {
+// Mount React, then fade out the splash once the first styled frame is painted.
+function mountApp() {
+  createRoot(document.getElementById("root")!).render(<App />);
+  // Two RAFs so the styled paint is committed before the splash is revealed.
+  requestAnimationFrame(() => requestAnimationFrame(() => hideSplash()));
+}
+
+// In production the main stylesheet is loaded non-blocking (see
+// server/static.ts) so the inline-styled splash can paint instantly (fast
+// FCP/LCP). But if we mounted React BEFORE that CSS applied, the app — and the
+// crawler SEO block in #root — would render unstyled and then reflow into place
+// when the stylesheet arrived. The Layout Instability API records that reflow as
+// a large layout shift (CLS) even though it happens behind the opaque splash.
+// So we DELAY the mount until the stylesheet is applied: React then lays out
+// exactly once, already styled, and no shift is recorded. The inline splash
+// keeps the screen filled (and stays the FCP/LCP element) throughout. In dev —
+// or any page with no deferred stylesheet — CSS is already present, so we mount
+// immediately.
+(function mountWhenStyled() {
   const asyncCss = document.querySelector(
     "link[data-async-css]",
   ) as HTMLLinkElement | null;
-  const cssReady =
-    !asyncCss || (window as any).__cssReady === true;
-
-  const reveal = () => requestAnimationFrame(() => hideSplash());
+  const cssReady = !asyncCss || (window as any).__cssReady === true;
 
   if (cssReady) {
-    reveal();
+    mountApp();
     return;
   }
 
   let done = false;
-  const fire = () => {
+  const go = () => {
     if (done) return;
     done = true;
-    reveal();
+    mountApp();
   };
-  asyncCss!.addEventListener("load", fire, { once: true });
-  // Safety net: never let the splash stick if the load event is missed.
-  setTimeout(fire, 3000);
+  asyncCss!.addEventListener("load", go, { once: true });
+  // Safety net: never block the app if the load event is missed.
+  setTimeout(go, 3000);
 })();
 
 // Defer third-party tracking (Meta Pixel) until the browser is idle or the
