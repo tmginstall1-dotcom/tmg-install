@@ -58,6 +58,35 @@ function startsWithKnownVerb(name: string): boolean {
   return MANUAL_VERB_PREFIXES.some(p => lower === p || lower.startsWith(p + " ") || lower.startsWith(p + ":"));
 }
 
+// For each computed verb, the words that — if they already appear in the
+// item name — would make prepending the verb redundant (e.g. an item named
+// "… bench system installation" should NOT become "Installation of …
+// installation"). Keyed by the verb returned from formatItemServiceLabel.
+const VERB_INDICATORS: Record<string, string[]> = {
+  "Installation": ["installation", "install", "installed", "installing", "fitting", "fit-out", "fitout"],
+  "Reinstallation": ["reinstallation", "reinstall", "installation", "install", "installing"],
+  "Dismantling": ["dismantling", "dismantle", "dismantled", "disassembly", "disassemble"],
+  "Relocation": ["relocation", "relocate", "relocating", "moving", "move", "shifting"],
+  "Disposal": ["disposal", "dispose", "disposing", "removal", "remove"],
+  "Dismantling & Disposal": ["dismantling", "dismantle", "disposal", "dispose", "removal"],
+};
+
+function nameHasVerb(name: string, verb: string): boolean {
+  const lower = name.toLowerCase();
+  return (VERB_INDICATORS[verb] || []).some(w => new RegExp(`\\b${w}\\b`).test(lower));
+}
+
+// Remove a redundant verb word only when it sits at the END of the name, so
+// "Linear workstation bench system installation" → "Linear workstation bench
+// system" (which we then re-format as "Installation of …"). Returns the
+// original name when there is nothing safe to strip from the tail.
+function stripTrailingVerb(name: string, verb: string): string {
+  const trailers = VERB_INDICATORS[verb] || [];
+  if (!trailers.length) return name;
+  const re = new RegExp(`[\\s\\-/]*\\b(?:${trailers.join("|")})\\b[\\s.]*$`, "i");
+  return name.replace(re, "").trim();
+}
+
 export function formatItemServiceLabel(item: any, allItems: any[] = []): string {
   const st = item?.serviceType;
   if (!st) return "";
@@ -77,9 +106,19 @@ export function formatItemDescription(item: any, allItems: any[] = []): string {
   // service type, so a labour line keyed as "install" still reads as typed
   // instead of becoming "Installation of To supply labour for ...".
   if (startsWithKnownVerb(name)) return name;
-  const verb = formatItemServiceLabel(item, allItems);
-  if (verb) return `${verb} of ${name}`;
-  // Manual or unknown service type with a plain noun name: default to
-  // "Installation of …" so the BCA-style verb-noun format stays consistent.
-  return `Installation of ${name}`;
+  // Manual or unknown service type defaults to "Installation of …" (TMG's
+  // primary service) so the BCA-style verb-noun format stays consistent.
+  const verb = formatItemServiceLabel(item, allItems) || "Installation";
+  // Avoid repeating the verb when the item name already contains it (e.g.
+  // "… bench system installation"). Strip a redundant trailing verb word so
+  // the line still reads "Installation of <noun>"; if the duplicate sits in
+  // the middle and can't be cleanly removed, show the name as typed.
+  if (nameHasVerb(name, verb)) {
+    const stripped = stripTrailingVerb(name, verb);
+    if (stripped && stripped !== name && stripped.length >= 3) {
+      return `${verb} of ${stripped.charAt(0).toUpperCase()}${stripped.slice(1)}`;
+    }
+    return name;
+  }
+  return `${verb} of ${name}`;
 }
