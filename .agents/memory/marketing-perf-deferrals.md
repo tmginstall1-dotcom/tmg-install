@@ -35,20 +35,35 @@ StaffManagement chunk); a global import dumps ~unused CSS into the homepage's
 critical CSS. Verify after build: leaflet CSS should be in `StaffManagement-*.css`,
 not `index-*.css`.
 
-## Async (non-blocking) main CSS — must gate React mount or CLS explodes
+## Async (non-blocking) main CSS — hide #root till styled, don't delay the mount
 The main Vite CSS link is rewritten to non-blocking (`media=print` onload swap,
 `data-async-css` + `window.__cssReady`) in `server/static.ts` (prod only) so the
-inline-styled splash in `client/index.html` paints instantly (FCP/LCP ~1.5s).
-**Rule:** With async CSS you MUST prevent the unstyled→styled reflow from being
-recorded as CLS — even though it happens *behind* the opaque fixed splash, the
-Layout Instability API still counts it. Two things make it work in lockstep:
-(1) `main.tsx` DELAYS `createRoot().render()` until the deferred stylesheet has
-applied (load event / `__cssReady`), with a ~3s fallback + immediate mount in
-dev; (2) the homepage crawler block `#seo-home` (`server/seo-pages.ts`) is inline
-**sr-only** (absolute/1px/clip) so it never paints visibly and never reflows.
-**Why:** Shipping async CSS without these took mobile CLS from 0 → 0.385 (CWV
-FAIL) while FCP/LCP improved — the deferred stylesheet applying caused the whole
-unstyled `#root` (app + the then-visible SEO block) to reflow.
+inline-styled splash in `client/index.html` paints instantly (fast FCP).
+**Rule:** With async CSS you MUST stop the unstyled→styled reflow from being
+recorded as CLS — even *behind* the opaque fixed splash the Layout Instability
+API still counts it. The correct shape (in `main.tsx`):
+(1) MOUNT React immediately so its JS parse/execute overlaps the CSS download;
+(2) keep `#root` `visibility:hidden` until styles apply, then reveal — hidden
+elements don't paint so the reflow is never a shift; (3) gate the reveal on a
+**rAF poll of `window.__cssReady`** (race-proof — fires the instant CSS applies
+even if the link `load` event was missed) plus load/error listeners + a long
+last-resort timeout; (4) homepage crawler block `#seo-home`
+(`server/seo-pages.ts`) is inline **sr-only** (absolute/1px/clip).
+**Why:** Async CSS without (4) took CLS 0 → 0.385. Then DELAYING the mount until
+CSS-ready fixed CLS but serialized CSS→JS→paint and blew LCP to 5.3s. Mounting
+immediately + hiding `#root` parallelizes the work: CLS stays ~0 AND LCP drops
+back. NEVER reveal unstyled content on the fallback path or CLS returns.
+
+## manualChunks: isolate tiny shared utils or they drag a big chunk eager
+`clsx`/`class-variance-authority`/`tailwind-merge` (used by every eager shadcn
+component via `cn`/`cva`) must be their OWN `vendor-utils` manualChunk in
+`vite.config.ts`.
+**Why:** Rollup co-located those utils INSIDE `vendor-charts` (recharts, ~419KB,
+admin-only). The eager entry then statically imported `vendor-charts` for `cn`,
+forcing 419KB of chart code onto the homepage critical path + its modulepreload.
+**How to verify:** after build, the entry chunk (`grep __vite__mapDeps
+dist/public/assets/index-*.js`) must have NO `import{…}from"./vendor-charts-*.js"`
+static import; recharts should load only via the lazy admin pages.
 
 ## Future work (not yet done)
 Lazy-mount below-the-fold sections of LandingCinematic (intersection/idle) to

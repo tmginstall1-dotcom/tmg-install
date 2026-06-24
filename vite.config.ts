@@ -46,6 +46,11 @@ export default defineConfig({
           "vendor-react":  ["react", "react-dom"],
           /* Data fetching layer */
           "vendor-query":  ["@tanstack/react-query"],
+          /* Tiny class utilities used by EVERY shadcn component (eager). Must be
+             their own chunk — otherwise Rollup co-locates them inside a bigger
+             vendor chunk (e.g. vendor-charts), which then forces that whole
+             bundle onto the homepage critical path. */
+          "vendor-utils": ["clsx", "class-variance-authority", "tailwind-merge"],
           /* Animation — customer pages only */
           "vendor-motion": ["framer-motion"],
           /* Charts — admin only, lazy loaded with analytics page */
