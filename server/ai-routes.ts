@@ -505,6 +505,58 @@ export function registerAiRoutes(app: Express) {
     } catch { res.status(500).json({ message: "DB error" }); }
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // QUOTE LINE CLASSIFICATION (admin productivity)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/ai/classify-line — classify a manually-keyed quote/invoice line
+   * as a service (install / dismantle / relocate / dispose) or a fee / charge
+   * so the customer-facing description reads correctly (no "Installation of
+   * Standard Mobilisation Fee"). Returns the line type only — the admin keeps
+   * full control of the wording and can override. This is called on demand
+   * from the quote editor, never on every customer view.
+   */
+  app.post("/api/ai/classify-line", requireAdmin, aiLlmLimiter, async (req: Request, res: Response) => {
+    try {
+      const { name } = z.object({ name: z.string().trim().min(1).max(200) }).parse(req.body);
+
+      const result = await callLLM({
+        agent: "classify-line",
+        model: "gpt-4o-mini",
+        max_tokens: 60,
+        temperature: 0,
+        schema: z.object({
+          serviceType: z.enum(["install", "dismantle", "relocate", "dispose", "fee"]),
+        }),
+        messages: [
+          {
+            role: "system",
+            content:
+              "You classify a single line on a furniture-installation quote for TMG Install (Singapore). " +
+              "TMG installs, dismantles, relocates and disposes of furniture. " +
+              "Decide what kind of line the text is:\n" +
+              "- 'install' = assembling / installing / mounting a physical item (e.g. 'Wardrobe', 'Height adjustable desk').\n" +
+              "- 'dismantle' = taking an item apart.\n" +
+              "- 'relocate' = moving / carrying an item.\n" +
+              "- 'dispose' = throwing away / removal of an item.\n" +
+              "- 'fee' = ANY money line that is NOT a physical service: fees, charges, surcharges, labour-only lines, " +
+              "allowances, deposits, material/parts purchase or supply, handling, mobilisation, transport. " +
+              "Examples that are 'fee': 'Standard Mobilisation Fee', 'Purchase & Handling Fee', " +
+              "'Basic LED Light Replacement Labour', 'LED Light Purchase'.\n" +
+              "Return JSON only: {\"serviceType\":\"...\"}.",
+          },
+          { role: "user", content: name },
+        ],
+      });
+
+      res.json({ serviceType: result.value.serviceType });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Could not classify line" });
+    }
+  });
+
   /** PATCH /api/ai/flags/:key — toggle a flag value */
   app.patch("/api/ai/flags/:key", requireAdmin, async (req: Request, res: Response) => {
     try {

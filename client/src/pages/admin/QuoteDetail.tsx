@@ -612,6 +612,7 @@ export default function AdminQuoteDetail() {
  // in writing before the edit can be saved. Tracked separately (not persisted).
  const [surchargeAck, setSurchargeAck] = useState(false);
  const [editItems, setEditItems] = useState<any[]>([]);
+ const [detectingItem, setDetectingItem] = useState<number | null>(null);
  // Multi-stop relocation (additive) editing state.
  const [editStops, setEditStops] = useState<EditStop[]>([]);
  const [editTotalVolume, setEditTotalVolume] = useState("");
@@ -1336,6 +1337,30 @@ export default function AdminQuoteDetail() {
  updated.subtotal = (Number(updated.unitPrice) * Number(updated.quantity)).toFixed(2);
  return updated;
  }));
+ };
+
+ // AI auto-detect the line type from the typed name, so fees/labour lines
+ // don't get an "Installation of …" prefix on the quote/job order. Only the
+ // serviceType is changed — the wording the admin typed is left untouched.
+ const detectEditItemType = async (i: number) => {
+ const name = String(editItems[i]?.detectedName || editItems[i]?.originalDescription || '').trim();
+ if (!name) {
+ toast({ title: "Type a description first", description: "Enter the line description, then auto-detect.", variant: "destructive" });
+ return;
+ }
+ setDetectingItem(i);
+ try {
+ const res = await apiRequest("POST", "/api/ai/classify-line", { name });
+ const data = await res.json();
+ if (data?.serviceType) {
+ updateEditItem(i, 'serviceType', data.serviceType);
+ toast({ title: "Line type detected", description: data.serviceType === 'fee' ? "Marked as Fee / Charge — shown as typed." : `Marked as ${data.serviceType}.` });
+ }
+ } catch {
+ toast({ title: "Couldn't auto-detect", description: "Set the line type manually.", variant: "destructive" });
+ } finally {
+ setDetectingItem(null);
+ }
  };
 
  // ── Multi-stop relocation (additive) edit helpers ──
@@ -2884,8 +2909,17 @@ export default function AdminQuoteDetail() {
  {editItems.map((item, i) => (
  <div key={i} className="flex flex-col sm:flex-row gap-3 p-4 bg-zinc-50 border border-zinc-200 rounded-none">
  <div className="flex-1 space-y-3">
+ <div className="flex items-center gap-2">
  <input value={item.detectedName || item.originalDescription} onChange={e => updateEditItem(i, 'detectedName', e.target.value)}
- placeholder="Item description" className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ placeholder="Item description" className="h-9 flex-1 px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors" />
+ <button type="button" onClick={() => detectEditItemType(i)} disabled={detectingItem === i}
+ data-testid={`button-detect-type-${i}`}
+ title="AI: detect if this is a service or a fee"
+ className="h-9 shrink-0 inline-flex items-center gap-1 px-2.5 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-700 bg-white hover:bg-violet-50 hover:border-violet-300 disabled:opacity-50 transition-colors">
+ <Sparkles className={`w-3.5 h-3.5 text-violet-500 ${detectingItem === i ? 'animate-pulse' : ''}`} />
+ {detectingItem === i ? 'Detecting…' : 'Detect'}
+ </button>
+ </div>
  <div className="grid grid-cols-3 gap-3">
  <select value={item.serviceType} onChange={e => updateEditItem(i, 'serviceType', e.target.value)}
  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors">
@@ -2894,6 +2928,7 @@ export default function AdminQuoteDetail() {
  <option value="relocate">Relocate</option>
  <option value="dispose">Dispose</option>
  <option value="dismantle_dispose">Dismantle + Dispose</option>
+ <option value="fee">Fee / Charge (show as typed)</option>
  </select>
  <input type="number" min="1" value={item.quantity} onChange={e => updateEditItem(i, 'quantity', parseInt(e.target.value) || 1)}
  placeholder="Qty" className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors text-center" />
