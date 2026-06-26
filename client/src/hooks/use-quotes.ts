@@ -6,6 +6,22 @@ const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 const TERMINAL_STATUSES = ['closed', 'cancelled'];
 const PAYMENT_PENDING_STATUSES = ['deposit_requested', 'final_payment_requested'];
 
+// Abort a request that stalls past `ms`. The admin dashboard loads the full
+// quote list (a large payload), and on a flaky mobile connection the download
+// can stall with no response. Without a timeout the fetch never settles, so the
+// query stays "pending" and the dashboard spins on "Loading dashboard" forever
+// with no way to recover. Aborting turns a stall into a normal error the query
+// can retry (and surface a Retry button for).
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 30_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function useQuotes(statusFilter?: string) {
   return useQuery({
     queryKey: [api.quotes.list.path, statusFilter],
@@ -15,10 +31,23 @@ export function useQuotes(statusFilter?: string) {
       if (statusFilter && statusFilter !== 'all') {
         url.searchParams.append('status', statusFilter);
       }
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch quotes");
+      const res = await fetchWithTimeout(url.toString(), { credentials: "include" });
+      if (!res.ok) {
+        const err = new Error("Failed to fetch quotes") as Error & { status?: number };
+        err.status = res.status;
+        throw err;
+      }
       return res.json();
     },
+    // Recover automatically from a stalled / dropped mobile request instead of
+    // spinning forever: retry network / server failures a few times with
+    // exponential backoff. Don't retry auth / client errors (401/403/400) — an
+    // expired session won't fix itself by retrying, so fail fast in that case.
+    retry: (count, err: any) => {
+      if (err?.status && err.status >= 400 && err.status < 500) return false;
+      return count < 3;
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     refetchInterval: (query) => {
       const data: any[] = query.state.data ?? [];
       const hasPaymentPending = Array.isArray(data) && data.some((q: any) => PAYMENT_PENDING_STATUSES.includes(q.status));

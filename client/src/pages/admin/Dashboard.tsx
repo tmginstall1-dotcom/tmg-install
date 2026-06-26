@@ -162,7 +162,7 @@ function Panel({
 }
 
 export default function AdminDashboard() {
-  const { data: allQuotes, isLoading } = useQuotes();
+  const { data: allQuotes, isLoading, isError, isFetching, refetch } = useQuotes();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [search, setSearch] = useState("");
   const [showNewJob, setShowNewJob] = useState(false);
@@ -336,6 +336,23 @@ export default function AdminDashboard() {
     return (
       <PageShell>
         <LoadingState label="Loading dashboard" />
+      </PageShell>
+    );
+  }
+
+  // The full quote list can stall on a flaky connection. Rather than spin the
+  // loading state forever, show a clear retry path once the query has given up.
+  if (isError && !allQuotes) {
+    return (
+      <PageShell>
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center px-6" data-testid="error-dashboard">
+          <AlertCircle className="w-7 h-7 text-black/30" strokeWidth={1.5} />
+          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[#0A0A0A]">Couldn't load dashboard</p>
+          <p className="text-[12px] text-black/55 font-medium max-w-xs">The connection timed out. Check your internet and try again.</p>
+          <Button onClick={() => refetch()} disabled={isFetching} data-testid="button-retry-dashboard">
+            {isFetching ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
       </PageShell>
     );
   }
