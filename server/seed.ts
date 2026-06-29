@@ -3622,6 +3622,116 @@ export async function seedDatabase() {
     console.log(`[startup] Round 40: Sliding Door Wardrobe (2-door / Mirror) — inserted ${inserted} new SKU row(s).`);
   }
 
+  /* ─── Round 41: Kitchen appliances — built-in fixtures + portable countertop ─
+     Problem: customers searching the estimator for "oven" (and other kitchen
+     appliances) found NO catalog item, so these very common moving/installation
+     items had nothing to price against and fell through to a generic estimate.
+     The catalog already had the big white-goods (fridge, washing machine,
+     dishwasher, dryer) but was missing the cooking line entirely, plus many of
+     the small portable electricals people pack in a kitchen.
+
+     This round adds two groups:
+
+     A) BUILT-IN kitchen fixtures (category "Appliances"). These are wired/ducted
+        into the cabinetry, so they get the full service ladder (install /
+        dismantle / relocate / dispose / dismantle_dispose) — same shape as the
+        existing Dishwasher. The Relocate price the customer sees by default is
+        the bundled D&R rate = (install + dismantle) × 0.60 (see computeDRPrice),
+        which is what the relocate basePrice below is set to:
+           Built-in Oven                90 / 60 / 90 / 50 / 85   0.30 m³
+           Built-in Hob / Cooktop       70 / 45 / 69 / 40 / 70   0.12 m³
+           Cooker Hood / Range Hood     90 / 55 / 87 / 45 / 80   0.20 m³
+
+     B) PORTABLE countertop electricals (category "Small Appliances & Items").
+        These are carry-as-is — no install/dismantle applies — so only a relocate
+        row is created, matching the Round 34 / 38 small-appliance pattern. Low
+        per-item add-ons; the job minimum still governs tiny single-item jobs.
+        Volumes are the appliance footprint in the van:
+           Microwave Oven (Countertop)        30   0.10 m³
+           Electric Oven / Toaster Oven       22   0.06 m³
+           Electric Kettle                    12   0.02 m³
+           Blender / Food Processor           15   0.03 m³
+           Stand Mixer                        18   0.04 m³
+           Coffee Machine                     20   0.05 m³
+           Portable Induction / Electric Cooktop  18   0.03 m³
+           Slow Cooker / Electric Steamer     15   0.04 m³
+
+     Marker: KITCHEN-APPLIANCES-R41-MARKER.
+  */
+  const r41 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "KITCHEN-APPLIANCES-R41-MARKER")).limit(1);
+  if (r41.length === 0) {
+    let inserted = 0;
+
+    // A) Built-in fixtures — full service ladder.
+    const builtIn: Array<{ name: string; skuBase: string; install: string; dismantle: string; relocate: string; dispose: string; disDisp: string; volumeM3: string }> = [
+      { name: "Built-in Oven",             skuBase: "KIT-OVEN-BI",   install: "90.00", dismantle: "60.00", relocate: "90.00", dispose: "50.00", disDisp: "85.00", volumeM3: "0.30" },
+      { name: "Built-in Hob / Cooktop",    skuBase: "KIT-HOB-BI",    install: "70.00", dismantle: "45.00", relocate: "69.00", dispose: "40.00", disDisp: "70.00", volumeM3: "0.12" },
+      { name: "Cooker Hood / Range Hood",  skuBase: "KIT-HOOD-BI",   install: "90.00", dismantle: "55.00", relocate: "87.00", dispose: "45.00", disDisp: "80.00", volumeM3: "0.20" },
+    ];
+    for (const v of builtIn) {
+      const rows: Array<{ sku: string; serviceType: string; basePrice: string }> = [
+        { sku: `${v.skuBase}-INSTALL`,   serviceType: "install",           basePrice: v.install },
+        { sku: `${v.skuBase}-DISMANTLE`, serviceType: "dismantle",         basePrice: v.dismantle },
+        { sku: `${v.skuBase}-RELOCATE`,  serviceType: "relocate",          basePrice: v.relocate },
+        { sku: `${v.skuBase}-DISPOSE`,   serviceType: "dispose",           basePrice: v.dispose },
+        { sku: `${v.skuBase}-DIS-DISP`,  serviceType: "dismantle_dispose", basePrice: v.disDisp },
+      ];
+      for (const row of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: v.name,
+            sku: row.sku,
+            category: "Appliances",
+            serviceType: row.serviceType,
+            basePrice: row.basePrice,
+            volumeM3: v.volumeM3,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    // B) Portable countertop electricals — carry-as-is relocate only.
+    const portable: Array<{ name: string; sku: string; basePrice: string; volumeM3: string }> = [
+      { name: "Microwave Oven (Countertop)",           sku: "KITAPP-MICROWAVE-RELOCATE",   basePrice: "30.00", volumeM3: "0.10" },
+      { name: "Electric Oven / Toaster Oven",          sku: "KITAPP-TOASTEROVEN-RELOCATE", basePrice: "22.00", volumeM3: "0.06" },
+      { name: "Electric Kettle",                       sku: "KITAPP-KETTLE-RELOCATE",      basePrice: "12.00", volumeM3: "0.02" },
+      { name: "Blender / Food Processor",              sku: "KITAPP-BLENDER-RELOCATE",     basePrice: "15.00", volumeM3: "0.03" },
+      { name: "Stand Mixer",                           sku: "KITAPP-STANDMIXER-RELOCATE",  basePrice: "18.00", volumeM3: "0.04" },
+      { name: "Coffee Machine",                        sku: "KITAPP-COFFEE-RELOCATE",      basePrice: "20.00", volumeM3: "0.05" },
+      { name: "Portable Induction / Electric Cooktop", sku: "KITAPP-INDUCTION-RELOCATE",   basePrice: "18.00", volumeM3: "0.03" },
+      { name: "Slow Cooker / Electric Steamer",        sku: "KITAPP-SLOWCOOKER-RELOCATE",  basePrice: "15.00", volumeM3: "0.04" },
+    ];
+    for (const row of portable) {
+      const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+      if (exists.length === 0) {
+        await db.insert(catalogItems).values({
+          name: row.name,
+          sku: row.sku,
+          category: "Small Appliances & Items",
+          serviceType: "relocate",
+          basePrice: row.basePrice,
+          volumeM3: row.volumeM3,
+          active: true,
+        } as any);
+        inserted++;
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__kitchen_appliances_r41_marker__",
+      sku: "KITCHEN-APPLIANCES-R41-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 41: Kitchen appliances (built-in oven/hob/hood + portable countertop) — inserted ${inserted} new SKU row(s).`);
+  }
+
   // Quick-reply template library — seed the dispute-scenario templates idempotently
   // (by slug). Bodies keep {{placeholders}} so live business-rule values are
   // substituted at render time. Existing edited templates are never overwritten.
