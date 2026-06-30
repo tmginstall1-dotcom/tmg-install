@@ -883,7 +883,8 @@ function RosterRow({ staff, log, status, liveLocation }: {
  ? differenceInMinutes(new Date(log.clockOutAt), new Date(log.clockInAt))
  : null;
  const dedMins = Math.max(0, Number(log?.deductionMinutes || 0));
- const mins = rawMins === null ? null : Math.max(0, rawMins - dedMins);
+ const breakMins = sumBreakMinutes(log?.breaks);
+ const mins = rawMins === null ? null : Math.max(0, rawMins - dedMins - breakMins);
 
  const hasInGps = !!(log?.clockInLat && log?.clockInLng);
  const hasOutGps = !!(log?.clockOutLat && log?.clockOutLng);
@@ -1042,13 +1043,22 @@ function RosterRow({ staff, log, status, liveLocation }: {
 
 // ─── Timesheets — helpers ───────────────────────────────────────────────────────
 
+// Total minutes of completed (closed) breaks logged on a shift. Unpaid → deducted.
+function sumBreakMinutes(breaks: any): number {
+ if (!Array.isArray(breaks)) return 0;
+ const ms = breaks.reduce((s: number, b: any) => b?.endAt && b?.startAt
+ ? s + Math.max(0, new Date(b.endAt).getTime() - new Date(b.startAt).getTime())
+ : s, 0);
+ return Math.round(ms / 60000);
+}
+
 function calcOT(logs: any[]): { totalMins: number; regularMins: number; otMins: number; deductedMins: number } {
  let totalMins = 0, regularMins = 0, otMins = 0, deductedMins = 0;
  for (const l of logs) {
  if (!l.clockOutAt) continue;
  const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
  if (raw <= 0) continue; // Skip invalid records (clock-out before clock-in) so they don't poison totals
- const ded = Math.max(0, Number(l.deductionMinutes || 0));
+ const ded = Math.max(0, Number(l.deductionMinutes || 0)) + sumBreakMinutes(l.breaks);
  const mins = Math.max(0, raw - ded);
  deductedMins += Math.min(ded, raw);
  totalMins += mins;
@@ -1569,12 +1579,18 @@ function TimesheetsView() {
  </button>
  ) : (() => {
  const ded = Math.max(0, Number(log.deductionMinutes || 0));
- const netMins = Math.max(0, mins! - ded);
+ const brk = sumBreakMinutes(log.breaks);
+ const netMins = Math.max(0, mins! - ded - brk);
  const netOt = Math.max(0, netMins - 8 * 60);
  return (
  <div>
  <span className="font-bold text-sm text-zinc-900">{fmt(netMins)}</span>
  {netOt > 0 && <span className="ml-1 text-[10px] font-bold text-amber-600">+{fmt(netOt)} OT</span>}
+ {brk > 0 && (
+ <div className="text-[10px] font-bold text-amber-600 mt-0.5">
+ −{fmt(brk)} break
+ </div>
+ )}
  {ded > 0 && (
  <div className="text-[10px] font-bold text-red-600 mt-0.5"
  title={log.deductionReason || "Admin deduction"}>

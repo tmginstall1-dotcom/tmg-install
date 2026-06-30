@@ -1975,6 +1975,24 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  app.post("/api/attendance/break/start", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const log = await storage.startBreak(req.session.userId);
+      if (!log) return res.status(404).json({ message: "No active clock-in found. Clock in before taking a break." });
+      res.json(log);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post("/api/attendance/break/end", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const log = await storage.endBreak(req.session.userId);
+      if (!log) return res.status(404).json({ message: "No active clock-in found." });
+      res.json(log);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   app.post("/api/attendance/clock-out", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     try {
@@ -3108,7 +3126,12 @@ export async function registerRoutes(
         if (log.clockOutAt) {
           const rawMs = new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime();
           const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
-          const hrs = Math.max(0, rawMs - dedMs) / 3600000;
+          // Staff-logged unpaid breaks are subtracted from worked hours.
+          const breaks = (((log as any).breaks || []) as { startAt: string; endAt: string | null }[]);
+          const breakMs = breaks.reduce((s, b) => b.endAt
+            ? s + Math.max(0, new Date(b.endAt).getTime() - new Date(b.startAt).getTime())
+            : s, 0);
+          const hrs = Math.max(0, rawMs - dedMs - breakMs) / 3600000;
           const dailyOt = Math.max(0, hrs - 8);
           regularHours  += Math.min(hrs, 8);
           overtimeHours += dailyOt;

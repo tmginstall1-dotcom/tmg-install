@@ -24,6 +24,7 @@ export const attendanceLogs = pgTable("attendance_logs", {
   notes: text("notes"),
   deductionMinutes: integer("deduction_minutes").default(0).notNull(), // admin-applied bulk/per-row deduction in minutes
   deductionReason: text("deduction_reason"),                            // why this deduction was applied
+  breaks: jsonb("breaks").$type<{ startAt: string; endAt: string | null }[]>().default([]), // staff-logged unpaid breaks within the shift
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   attendanceUserIdx: index("attendance_logs_user_id_idx").on(t.userId),

@@ -29,6 +29,13 @@
       "when": 1782800033154,
       "tag": "0003_brainy_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782801051180,
+      "tag": "0004_old_stone_men",
+      "breakpoints": true
     }
   ]
 }

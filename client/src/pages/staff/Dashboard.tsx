@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   MapPin, CalendarDays, ChevronRight, Phone, MessageCircle,
-  Clock, Timer, CheckCircle2, Wifi, WifiOff,
+  Clock, Timer, CheckCircle2, Wifi, WifiOff, Coffee, Play,
   Package, TrendingUp, AlertTriangle, RefreshCw, Radio, CloudOff, Download,
 } from "lucide-react";
 import { useOfflineBanner, useWithOfflineCache } from "@/hooks/use-offline-cache";
@@ -82,11 +82,20 @@ export default function StaffDashboard() {
   // The currently open session (clocked in, not yet clocked out)
   const activeSession = todayLogs.find((l: any) => !l.clockOutAt) ?? null;
 
-  // Sum of all fully-completed sessions today (minutes)
+  // Completed (closed) unpaid break minutes on a log — breaks are deducted from paid time.
+  const closedBreakMins = (l: any): number => {
+    if (!Array.isArray(l?.breaks)) return 0;
+    const ms = l.breaks.reduce((s: number, b: any) => b?.endAt && b?.startAt
+      ? s + Math.max(0, new Date(b.endAt).getTime() - new Date(b.startAt).getTime())
+      : s, 0);
+    return Math.round(ms / 60000);
+  };
+
+  // Sum of all fully-completed sessions today (minutes), net of deductions + breaks
   const todayCompletedMins = todayLogs.reduce((acc: number, l: any) => {
     if (!l.clockOutAt) return acc;
     const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
-    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)));
+    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)) - closedBreakMins(l));
   }, 0);
 
   const allJobs = quotes || [];
@@ -126,7 +135,7 @@ export default function StaffDashboard() {
     const d = new Date(l.clockInAt);
     if (d < weekStart) return acc;
     const raw = differenceInMinutes(new Date(l.clockOutAt), new Date(l.clockInAt));
-    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)));
+    return acc + Math.max(0, raw - Math.max(0, Number(l.deductionMinutes || 0)) - closedBreakMins(l));
   }, 0);
 
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -410,12 +419,40 @@ function ClockHero({
   });
 
   const isClockedIn = !!activeSession;
+
+  // Break state, derived from the open shift's breaks array.
+  const sessionBreaks: { startAt: string; endAt: string | null }[] = Array.isArray(activeSession?.breaks) ? activeSession.breaks : [];
+  const openBreak = sessionBreaks.find((b) => !b.endAt) ?? null;
+  const onBreak = isClockedIn && !!openBreak;
+  const breakSecs = onBreak ? Math.floor((now.getTime() - new Date(openBreak!.startAt).getTime()) / 1000) : 0;
+
+  const breakMut = useMutation({
+    mutationFn: async () =>
+      apiRequest("POST", onBreak ? "/api/attendance/break/end" : "/api/attendance/break/start", {}),
+    onSuccess: () => {
+      refreshAttendance();
+      toast({
+        title: onBreak ? "Break ended ✓" : "On break ☕",
+        description: onBreak ? "Welcome back — clock keeps running." : "Break time won't be counted as paid hours.",
+      });
+    },
+    onError: (e: any) => {
+      refreshAttendance();
+      toast({ title: "Couldn't update break", description: e.message, variant: "destructive" });
+    },
+  });
+
   const isPending = clockInMut.isPending || clockOutMut.isPending || gpsState === "loading";
 
-  // Live total seconds = completed sessions + current open session
+  // Live total seconds = completed sessions + current open session, minus
+  // break time on the open session (breaks are unpaid).
   const completedSecs = todayCompletedMins * 60;
+  const sessionBreakSecs = sessionBreaks.reduce((s, b) => {
+    const end = b.endAt ? new Date(b.endAt).getTime() : now.getTime();
+    return s + Math.max(0, (end - new Date(b.startAt).getTime()) / 1000);
+  }, 0);
   const activeSecs = activeSession
-    ? Math.floor((now.getTime() - new Date(activeSession.clockInAt).getTime()) / 1000)
+    ? Math.max(0, Math.floor((now.getTime() - new Date(activeSession.clockInAt).getTime()) / 1000) - sessionBreakSecs)
     : 0;
   const workedSecs = completedSecs + activeSecs;
 
@@ -488,10 +525,17 @@ function ClockHero({
           <div className="flex-1">
             {/* Status label */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {isClockedIn && (
+              {isClockedIn && !onBreak && (
                 <span className="flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Session {todayLogs.length} · In since {format(new Date(activeSession.clockInAt), "HH:mm")}
+                </span>
+              )}
+
+              {onBreak && (
+                <span className="flex items-center gap-1.5 bg-amber-500/25 border border-amber-400/40 text-amber-200 text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm" data-testid="status-on-break">
+                  <Coffee className="w-3 h-3" />
+                  On break · {fmtHHMMSS(breakSecs).slice(0, 5)}
                 </span>
               )}
 
@@ -520,6 +564,27 @@ function ClockHero({
 
           {/* Clock button */}
           <div className="flex flex-col items-end gap-2 shrink-0">
+            {/* Break toggle — only while clocked in */}
+            {isClockedIn && (
+              <button
+                onClick={() => breakMut.mutate()}
+                disabled={breakMut.isPending}
+                data-testid={onBreak ? "button-end-break" : "button-start-break"}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm border transition-all active:scale-95 disabled:opacity-50 ${
+                  onBreak
+                    ? "bg-emerald-500/90 text-white border-emerald-400/40"
+                    : "bg-amber-500/90 text-white border-amber-400/40"
+                }`}
+              >
+                {breakMut.isPending ? (
+                  <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                ) : onBreak ? (
+                  <><Play className="w-3 h-3" /> End Break</>
+                ) : (
+                  <><Coffee className="w-3 h-3" /> Start Break</>
+                )}
+              </button>
+            )}
             {gpsState === "denied" && (
               <div className="bg-red-500/90 backdrop-blur text-white text-[11px] font-bold px-3 py-2 rounded-xl max-w-[180px] text-right leading-tight">
                 📍 Enable GPS<br />

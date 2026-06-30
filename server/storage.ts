@@ -432,8 +432,50 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(attendanceLogs.clockInAt))
       .limit(1);
     if (!open) return undefined;
+    const now = new Date();
+    // Auto-close any break the staff left open so it doesn't run forever.
+    const breaks = (((open as any).breaks || []) as { startAt: string; endAt: string | null }[]);
+    let breaksChanged = false;
+    for (const b of breaks) { if (!b.endAt) { b.endAt = now.toISOString(); breaksChanged = true; } }
     const [updated] = await db.update(attendanceLogs)
-      .set({ clockOutAt: new Date(), clockOutLat: lat, clockOutLng: lng })
+      .set({ clockOutAt: now, clockOutLat: lat, clockOutLng: lng, ...(breaksChanged ? { breaks } : {}) })
+      .where(eq(attendanceLogs.id, open.id))
+      .returning();
+    return updated;
+  }
+
+  // Start an unpaid break on the staff member's currently open shift.
+  // No-op (returns the existing log) if a break is already running.
+  async startBreak(userId: number): Promise<AttendanceLog | undefined> {
+    const [open] = await db.select().from(attendanceLogs)
+      .where(and(eq(attendanceLogs.userId, userId), isNull(attendanceLogs.clockOutAt)))
+      .orderBy(desc(attendanceLogs.clockInAt))
+      .limit(1);
+    if (!open) return undefined;
+    const breaks = (((open as any).breaks || []) as { startAt: string; endAt: string | null }[]);
+    if (breaks.some(b => !b.endAt)) return open; // already on break
+    breaks.push({ startAt: new Date().toISOString(), endAt: null });
+    const [updated] = await db.update(attendanceLogs)
+      .set({ breaks })
+      .where(eq(attendanceLogs.id, open.id))
+      .returning();
+    return updated;
+  }
+
+  // End the currently-running break on the staff member's open shift.
+  // No-op (returns the existing log) if no break is running.
+  async endBreak(userId: number): Promise<AttendanceLog | undefined> {
+    const [open] = await db.select().from(attendanceLogs)
+      .where(and(eq(attendanceLogs.userId, userId), isNull(attendanceLogs.clockOutAt)))
+      .orderBy(desc(attendanceLogs.clockInAt))
+      .limit(1);
+    if (!open) return undefined;
+    const breaks = (((open as any).breaks || []) as { startAt: string; endAt: string | null }[]);
+    const openBreak = [...breaks].reverse().find(b => !b.endAt);
+    if (!openBreak) return open; // not on break
+    openBreak.endAt = new Date().toISOString();
+    const [updated] = await db.update(attendanceLogs)
+      .set({ breaks })
       .where(eq(attendanceLogs.id, open.id))
       .returning();
     return updated;

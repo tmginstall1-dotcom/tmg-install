@@ -36,6 +36,7 @@
 - [Admin shell crash scope](admin-shell-crash.md) — a render throw in AdminSidebar/BottomNav/Topbar crashes the whole admin area post-login (login page is fine); dev workflow has no tsc so missing-import ReferenceErrors ship.
 - [Dashboard full-list stall](dashboard-full-list-stall.md) — admin dashboard loads ALL quotes fully enriched with no fetch timeout + global retry:false → stalled mobile request spins forever; full-screen-gated fetches need timeout+retry(skip 4xx)+Retry UI.
 - [Marketing homepage perf](marketing-perf-deferrals.md) — mobile hero is text (no img preload); defer gtag/Meta Pixel but buffer early events + add visibilitychange/pagehide; leaflet CSS only in GpsMap, never main.tsx.
+- [Staff break tracking](break-tracking.md) — unpaid breaks stored JSONB on the open attendance log; completed break mins must subtract from worked time in payroll + admin timesheets + staff dashboard totals in lockstep.
 - [GGV job→quote mirror](ggv-quote-mirror.md) — each GGV job bridges to a $0 'booked'/'gogovan' quote (one shared synthetic customer) for dashboard/assign/staff/GPS; delete GGV row BEFORE quote; mirror-link is best-effort + PATCH-backfilled.
 - [Per-person staff job scoping](staff-jobs-scoping.md) — getQuotesForStaff includes teammates' solo jobs; use getQuotesAssignedTo (self + own team only) for payroll/per-person GPS site checks.
 - [SGT day windows](sgt-day-window.md) — admin date picker = Singapore UTC+8 day; build ranges with `+08:00` ISO offset, not server-local midnight, or GPS/jobs near midnight land in the wrong day.
