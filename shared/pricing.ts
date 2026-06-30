@@ -1418,6 +1418,33 @@ export function computePricing(input: PricingInput): PricingResult {
   };
 }
 
+// --------------------------------------------------------------------------
+// Staff meal (dinner) allowance — single source of truth for payslip + P&L
+// --------------------------------------------------------------------------
+/** Flat dinner allowance amount (SGD) paid on any qualifying day. */
+export const MEAL_ALLOWANCE_AMOUNT = 8;
+
+/** Date the current dinner-allowance policy takes effect (Singapore time, UTC+8). */
+export const MEAL_ALLOWANCE_RULE_FROM = new Date("2026-07-01T00:00:00+08:00").getTime();
+
+/**
+ * Per-day staff dinner allowance, in SGD.
+ *
+ * Policy (from 1 Jul 2026): no lunch allowance; pay a flat S$8 on any day whose
+ * overtime is 2 hours or more. Before 1 Jul 2026 the legacy rule applies (S$8 on
+ * any day with more than 3h overtime) so historical pay is never changed.
+ *
+ * @param dayStart      the day's clock-in time (Date or ISO string)
+ * @param dailyOtHours  that day's overtime hours (net of breaks/deductions)
+ */
+export function mealAllowanceForDay(dayStart: Date | string, dailyOtHours: number): number {
+  const t = (typeof dayStart === "string" ? new Date(dayStart) : dayStart).getTime();
+  const qualifies = t >= MEAL_ALLOWANCE_RULE_FROM
+    ? dailyOtHours >= 2   // current policy: dinner allowance from 2h OT
+    : dailyOtHours > 3;   // legacy policy (before 1 Jul 2026)
+  return qualifies ? MEAL_ALLOWANCE_AMOUNT : 0;
+}
+
 /** Summarise a PricingResult for storage in the quotes table. */
 export function pricingToQuoteFields(result: PricingResult) {
   return {

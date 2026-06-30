@@ -43,7 +43,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, mealAllowanceForDay, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { getPackage } from "@shared/packages";
 import { renderInvoicePdf, renderAuditReportPdf, PdfBusyError } from "./invoice-pdf";
 
@@ -2495,6 +2495,7 @@ export async function registerRoutes(
         clockInAt: attendanceLogs.clockInAt,
         clockOutAt: attendanceLogs.clockOutAt,
         deductionMinutes: attendanceLogs.deductionMinutes,
+        breaks: attendanceLogs.breaks,
       }).from(attendanceLogs);
 
       const monthlySalaryMap: Record<string, number> = {};
@@ -2515,10 +2516,16 @@ export async function registerRoutes(
         for (const log of myLogs) {
           const rawMs = log.clockOutAt!.getTime() - log.clockInAt!.getTime();
           const dedMs = Math.max(0, (log.deductionMinutes || 0)) * 60000;
-          const hrs = Math.max(0, rawMs - dedMs) / 3600000;
+          // Staff-logged unpaid breaks are subtracted too — keep identical to the
+          // payslip generator or P&L cost / meal allowance will drift from real pay.
+          const breaks = ((log.breaks || []) as { startAt: string; endAt: string | null }[]);
+          const breakMs = breaks.reduce((s, b) => b.endAt
+            ? s + Math.max(0, new Date(b.endAt).getTime() - new Date(b.startAt).getTime())
+            : s, 0);
+          const hrs = Math.max(0, rawMs - dedMs - breakMs) / 3600000;
           const otHrs = Math.max(0, hrs - 8);
-          // Meal allowance: $8 on any day with more than 3h overtime (matches payslip)
-          const mealAllowance = otHrs > 3 ? 8 : 0;
+          // Dinner allowance — same rule as the payslip (mealAllowanceForDay).
+          const mealAllowance = mealAllowanceForDay(log.clockInAt!, otHrs);
           const cost = Math.min(hrs, 8) * hRate + otHrs * otRate + mealAllowance;
           if (cost === 0) continue;
           totalSalaryCost += cost;
@@ -3121,7 +3128,7 @@ export async function registerRoutes(
       const isMonthly = monthlyRate > 0;
 
       // Calculate hours per day (cap regular at 8h/day, remainder is OT)
-      let regularHours = 0, overtimeHours = 0, mealAllowanceDays = 0;
+      let regularHours = 0, overtimeHours = 0, mealAllowance = 0;
       for (const log of logs) {
         if (log.clockOutAt) {
           const rawMs = new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime();
@@ -3135,11 +3142,11 @@ export async function registerRoutes(
           const dailyOt = Math.max(0, hrs - 8);
           regularHours  += Math.min(hrs, 8);
           overtimeHours += dailyOt;
-          // Meal allowance: S$8 per day when OT > 3h (applied once per day)
-          if (dailyOt > 3) mealAllowanceDays++;
+          // Dinner allowance: from 1 Jul 2026, S$8 on any day with >= 2h OT
+          // (no lunch allowance); legacy >3h rule applies before then.
+          mealAllowance += mealAllowanceForDay(log.clockInAt, dailyOt);
         }
       }
-      const mealAllowance = mealAllowanceDays * 8;
 
       // Per-job staff transport allowance: $8 for every job in the period where
       // admin enabled the toggle AND this staff was on the job — either as the
