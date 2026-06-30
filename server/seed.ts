@@ -3732,6 +3732,124 @@ export async function seedDatabase() {
     console.log(`[startup] Round 41: Kitchen appliances (built-in oven/hob/hood + portable countertop) — inserted ${inserted} new SKU row(s).`);
   }
 
+  /* ─── Round 42: IKEA common-category coverage ─────────────────────────────
+     Goal: make sure the catalog covers the IKEA furniture families customers in
+     Singapore actually buy, so the estimator / photo detection / WhatsApp agent
+     can price them directly instead of falling through to the generic fallback.
+
+     Before R42 the IKEA coverage had real gaps: no IKEA dining range, almost no
+     IKEA sofas (only Kivik), no IKEA office desks/chairs, and only a single
+     basic "IKEA Besta TV Unit" — there was no large wall-mounted BESTÅ media
+     combination (e.g. the 300cm floating unit), no BESTÅ storage combo, and no
+     EKET. This round fills those gaps and adds the popular bed/chest/wardrobe/
+     shelving/desk models.
+
+     Every item gets the full service ladder (install / dismantle / relocate /
+     dispose / dismantle_dispose). Relocate is the canonical D&R bundle rate
+     = round((install + dismantle) × 0.60) (see computeDRPrice), matching how the
+     existing IKEA rows were calibrated. New categories (IKEA Dining, IKEA Sofas,
+     IKEA Office) surface under the "IKEA" estimator tab because that tab now
+     matches any category containing "ikea".
+
+     Marker: IKEA-COVERAGE-R42-MARKER.
+  */
+  const r42 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "IKEA-COVERAGE-R42-MARKER")).limit(1);
+  if (r42.length === 0) {
+    // name, category, skuBase, install, dismantle, dispose, dismantle_dispose, volumeM3
+    const ikeaItems: Array<{ name: string; category: string; skuBase: string; install: number; dismantle: number; dispose: number; disDisp: number; vol: number }> = [
+      // ── IKEA Living Room — BESTÅ system + EKET (the big gaps) ──
+      { name: "IKEA Besta Media Combination (Wall-Mounted)", category: "IKEA Living Room", skuBase: "IKEA-BESTA-WALL", install: 160, dismantle: 95, dispose: 80, disDisp: 140, vol: 1.00 },
+      { name: "IKEA Besta Storage Combination (with doors)", category: "IKEA Living Room", skuBase: "IKEA-BESTA-STORAGE", install: 120, dismantle: 75, dispose: 70, disDisp: 120, vol: 0.90 },
+      { name: "IKEA Eket Cabinet Combination",              category: "IKEA Living Room", skuBase: "IKEA-EKET", install: 60, dismantle: 40, dispose: 35, disDisp: 55, vol: 0.40 },
+      { name: "IKEA Strandmon Wing Chair",                  category: "IKEA Living Room", skuBase: "IKEA-STRANDMON", install: 35, dismantle: 25, dispose: 30, disDisp: 45, vol: 0.50 },
+
+      // ── IKEA Sofas (new category) ──
+      { name: "IKEA Friheten Corner Sofa Bed", category: "IKEA Sofas", skuBase: "IKEA-FRIHETEN", install: 90, dismantle: 70, dispose: 70, disDisp: 120, vol: 2.20 },
+      { name: "IKEA Ektorp Sofa (3-seat)",     category: "IKEA Sofas", skuBase: "IKEA-EKTORP", install: 70, dismantle: 55, dispose: 55, disDisp: 95, vol: 1.90 },
+      { name: "IKEA Vimle Sectional Sofa",     category: "IKEA Sofas", skuBase: "IKEA-VIMLE", install: 95, dismantle: 70, dispose: 70, disDisp: 120, vol: 2.40 },
+      { name: "IKEA Klippan 2-seat Sofa",      category: "IKEA Sofas", skuBase: "IKEA-KLIPPAN", install: 45, dismantle: 35, dispose: 40, disDisp: 65, vol: 1.10 },
+
+      // ── IKEA Dining (new category) ──
+      { name: "IKEA Ekedalen Extendable Dining Table", category: "IKEA Dining", skuBase: "IKEA-EKEDALEN", install: 55, dismantle: 40, dispose: 45, disDisp: 70, vol: 0.60 },
+      { name: "IKEA Ingatorp Extendable Dining Table", category: "IKEA Dining", skuBase: "IKEA-INGATORP", install: 60, dismantle: 45, dispose: 45, disDisp: 75, vol: 0.60 },
+      { name: "IKEA Lisabo Dining Table",              category: "IKEA Dining", skuBase: "IKEA-LISABO", install: 45, dismantle: 35, dispose: 40, disDisp: 60, vol: 0.50 },
+      { name: "IKEA Norden Gateleg Table",            category: "IKEA Dining", skuBase: "IKEA-NORDEN-TABLE", install: 50, dismantle: 38, dispose: 40, disDisp: 65, vol: 0.50 },
+      { name: "IKEA Dining Chair (per chair)",        category: "IKEA Dining", skuBase: "IKEA-DINING-CHAIR", install: 12, dismantle: 9, dispose: 12, disDisp: 18, vol: 0.12 },
+      { name: "IKEA Bar Stool (per stool)",           category: "IKEA Dining", skuBase: "IKEA-BAR-STOOL", install: 14, dismantle: 10, dispose: 12, disDisp: 20, vol: 0.12 },
+
+      // ── IKEA Beds (popular frames) ──
+      { name: "IKEA Brimnes Bed Frame with Storage (Queen)", category: "IKEA Beds", skuBase: "IKEA-BRIMNES-BED", install: 120, dismantle: 90, dispose: 75, disDisp: 130, vol: 0.70 },
+      { name: "IKEA Slattum Upholstered Bed (Queen)",        category: "IKEA Beds", skuBase: "IKEA-SLATTUM-BED", install: 90, dismantle: 70, dispose: 65, disDisp: 115, vol: 0.60 },
+      { name: "IKEA Tarva Bed Frame (Queen)",                category: "IKEA Beds", skuBase: "IKEA-TARVA-BED", install: 85, dismantle: 65, dispose: 60, disDisp: 110, vol: 0.55 },
+      { name: "IKEA Neiden Bed Frame (Single)",              category: "IKEA Beds", skuBase: "IKEA-NEIDEN-BED", install: 60, dismantle: 45, dispose: 50, disDisp: 85, vol: 0.40 },
+
+      // ── IKEA Bedroom (chests of drawers) ──
+      { name: "IKEA Hemnes Chest of Drawers (8-drawer)", category: "IKEA Bedroom", skuBase: "IKEA-HEMNES-CHEST", install: 75, dismantle: 55, dispose: 50, disDisp: 80, vol: 0.70 },
+      { name: "IKEA Nordli Modular Chest (6-drawer)",    category: "IKEA Bedroom", skuBase: "IKEA-NORDLI-CHEST", install: 70, dismantle: 50, dispose: 45, disDisp: 75, vol: 0.60 },
+      { name: "IKEA Koppang Chest of Drawers (5-drawer)",category: "IKEA Bedroom", skuBase: "IKEA-KOPPANG-CHEST", install: 60, dismantle: 45, dispose: 40, disDisp: 65, vol: 0.55 },
+      { name: "IKEA Brimnes Chest of Drawers (4-drawer)",category: "IKEA Bedroom", skuBase: "IKEA-BRIMNES-CHEST", install: 55, dismantle: 40, dispose: 40, disDisp: 60, vol: 0.50 },
+
+      // ── IKEA Wardrobes ──
+      { name: "IKEA Brimnes Wardrobe (2-door)",   category: "IKEA Wardrobes", skuBase: "IKEA-BRIMNES-WARDROBE", install: 110, dismantle: 85, dispose: 80, disDisp: 130, vol: 0.75 },
+      { name: "IKEA Songesand Wardrobe (2-door)", category: "IKEA Wardrobes", skuBase: "IKEA-SONGESAND-WARDROBE", install: 110, dismantle: 85, dispose: 80, disDisp: 130, vol: 0.75 },
+
+      // ── IKEA Shelving ──
+      { name: "IKEA Hemnes Bookcase",    category: "IKEA Shelving", skuBase: "IKEA-HEMNES-BOOKCASE", install: 50, dismantle: 38, dispose: 40, disDisp: 65, vol: 0.50 },
+      { name: "IKEA Fjallbo Shelf Unit", category: "IKEA Shelving", skuBase: "IKEA-FJALLBO", install: 40, dismantle: 30, dispose: 35, disDisp: 55, vol: 0.40 },
+
+      // ── IKEA Office (new category) ──
+      { name: "IKEA Bekant Desk",                  category: "IKEA Office", skuBase: "IKEA-BEKANT", install: 65, dismantle: 48, dispose: 50, disDisp: 80, vol: 0.60 },
+      { name: "IKEA Trotten Sit/Stand Desk",       category: "IKEA Office", skuBase: "IKEA-TROTTEN", install: 80, dismantle: 60, dispose: 55, disDisp: 90, vol: 0.70 },
+      { name: "IKEA Idasen Sit/Stand Desk (electric)", category: "IKEA Office", skuBase: "IKEA-IDASEN", install: 110, dismantle: 80, dispose: 70, disDisp: 120, vol: 0.80 },
+      { name: "IKEA Alex Desk",                    category: "IKEA Office", skuBase: "IKEA-ALEX-DESK", install: 55, dismantle: 40, dispose: 40, disDisp: 65, vol: 0.50 },
+      { name: "IKEA Lagkapten / Linnmon Desk",     category: "IKEA Office", skuBase: "IKEA-LAGKAPTEN", install: 35, dismantle: 25, dispose: 30, disDisp: 45, vol: 0.40 },
+      { name: "IKEA Markus Office Chair",          category: "IKEA Office", skuBase: "IKEA-MARKUS", install: 30, dismantle: 22, dispose: 30, disDisp: 45, vol: 0.30 },
+      { name: "IKEA Flintan Office Chair",         category: "IKEA Office", skuBase: "IKEA-FLINTAN", install: 25, dismantle: 18, dispose: 28, disDisp: 42, vol: 0.30 },
+
+      // ── IKEA Storage ──
+      { name: "IKEA Platsa Storage System", category: "IKEA Storage", skuBase: "IKEA-PLATSA", install: 100, dismantle: 75, dispose: 70, disDisp: 120, vol: 0.80 },
+    ];
+
+    let inserted = 0;
+    for (const it of ikeaItems) {
+      const relocate = Math.round((it.install + it.dismantle) * 0.6);
+      const vol = it.vol.toFixed(2);
+      const rows: Array<{ sku: string; serviceType: string; basePrice: number }> = [
+        { sku: `${it.skuBase}-INSTALL`,   serviceType: "install",           basePrice: it.install },
+        { sku: `${it.skuBase}-DISMANTLE`, serviceType: "dismantle",         basePrice: it.dismantle },
+        { sku: `${it.skuBase}-RELOCATE`,  serviceType: "relocate",          basePrice: relocate },
+        { sku: `${it.skuBase}-DISPOSE`,   serviceType: "dispose",           basePrice: it.dispose },
+        { sku: `${it.skuBase}-DIS-DISP`,  serviceType: "dismantle_dispose", basePrice: it.disDisp },
+      ];
+      for (const row of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: it.name,
+            sku: row.sku,
+            category: it.category,
+            serviceType: row.serviceType,
+            basePrice: row.basePrice.toFixed(2),
+            volumeM3: vol,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__ikea_coverage_r42_marker__",
+      sku: "IKEA-COVERAGE-R42-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 42: IKEA common-category coverage — inserted ${inserted} new SKU row(s).`);
+  }
+
   // Quick-reply template library — seed the dispute-scenario templates idempotently
   // (by slug). Bodies keep {{placeholders}} so live business-rule values are
   // substituted at render time. Existing edited templates are never overwritten.

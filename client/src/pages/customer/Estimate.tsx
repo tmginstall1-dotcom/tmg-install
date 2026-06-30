@@ -523,7 +523,7 @@ export default function EstimateWizard() {
     { label: "Dining",   match: ["dining"] },
     { label: "Office",   match: ["office", "meeting pods & phone booths"] },
     { label: "Appliances", match: ["appliances"] },
-    { label: "IKEA",     match: ["ikea beds", "ikea wardrobes", "ikea living room", "ikea shelving", "ikea storage", "ikea study", "ikea bedroom"] },
+    { label: "IKEA",     match: ["ikea"] },
     { label: "Storage",  match: ["storage", "ikea shelving", "ikea storage"] },
   ];
 
@@ -1065,7 +1065,7 @@ export default function EstimateWizard() {
       if (detHas !== catHas) return 0;
     }
     // IKEA model → map to specific catalog entry
-    const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad|vadholma|stenstorp|förhöja|forhoja|råskog|raskog|norden|tornviken)\b/i);
+    const ikeaModel = d.match(/\b(pax|kallax|billy|malm|hemnes|besta|micke|lack|alex|poäng|kivik|ivar|trofast|stuva|vittsjo|lillångén|lillangen|godmorgon|kleppstad|vadholma|stenstorp|förhöja|forhoja|råskog|raskog|norden|tornviken|friheten|ektorp|vimle|klippan|strandmon|eket|ekedalen|ingatorp|lisabo|brimnes|slattum|tarva|neiden|nordli|koppang|songesand|fjallbo|fjällbo|bekant|trotten|idasen|idåsen|lagkapten|linnmon|markus|flintan|platsa)\b/i);
     if (ikeaModel && c.includes(ikeaModel[1].toLowerCase())) return 70;
     // IKEA kitchen island models → map to "ikea kitchen island" entries
     const isIkeaIsland = /\b(vadholma|stenstorp|norden|tornviken)\b/i.test(d);

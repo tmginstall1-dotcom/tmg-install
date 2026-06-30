@@ -10,6 +10,7 @@
 - [Overtime policy surfaces](overtime-policy-surfaces.md) — scheduled-time/overtime wording+math is duplicated across terms/email/Estimate/Landing/pricing/QuoteDetail/server; change in lockstep; invoice payload must carry volumeM3+carryOnly+distanceKm.
 - [Staff job action gating](staff-job-action-gating.md) — jobs can be `booked` WITH an assignment (admin/WhatsApp create, deposit auto-book); staff actions + server guards must treat booked-with-assignment like `assigned`.
 - [Catalog seed Rounds](catalog-seed-rounds.md) — add/reprice catalog items via a new idempotent "Round N" migration in server/seed.ts (base array only seeds fresh DBs); restart workflow after.
+- [IKEA catalog coverage](ikea-catalog-coverage.md) — adding IKEA items needs 3 places in sync: seed Round, estimator IKEA tab (matches any "ikea" category), and the ikeaModel detection regex; name must carry the model word.
 - [Blind install pricing gap](blind-install-pricing-gap.md) — catalog must cover EVERY serviceType (esp. `install`) per item; a missing one silently hits the $150 generic fallback and over-quotes.
 - [Quote/invoice display surfaces](quote-invoice-display-surfaces.md) — money breakdown re-rendered in ~9 surfaces; Invoice.tsx + invoicePdf.ts easy to miss; split display, keep totals.
 - [Staff completion API compat](staff-completion-api-compat.md) — keep new completion fields optional server-side; native/PWA staff bundles can't hot-update, so required fields 400 old clients.
