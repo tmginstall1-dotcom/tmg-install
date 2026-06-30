@@ -28,6 +28,14 @@ import {
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
+// A GGV job row enriched with the assignment of its mirrored operational job,
+// so the GGV tracker can show & change who's assigned without leaving the page.
+export type GGVJobWithAssignee = GGVJob & {
+  assignedStaffId: number | null;
+  assignedTeamId: number | null;
+  assigneeName: string | null;
+};
+
 export interface IStorage {
   // Users
   getUserByUsername(username: string): Promise<typeof users.$inferSelect | undefined>;
@@ -109,7 +117,7 @@ export interface IStorage {
   getQuotesAssignedTo(staffId: number): Promise<QuoteResponse[]>;
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
-  updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
+  updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number | null, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
   setCompletionSignature(id: number, signatureUrl: string, signedName: string): Promise<void>;
   setPhaseCompletion(id: number, phase: 'dismantle' | 'delivery' | 'install', done: boolean, actor: { actorType: string; userId?: number; note?: string }): Promise<QuoteResponse | undefined>;
   updateQuotePayment(id: number, paymentType: 'deposit' | 'final', amount: string): Promise<QuoteResponse | undefined>;
@@ -183,7 +191,7 @@ export interface IStorage {
   deletePricingCorrection(id: number): Promise<void>;
 
   // GGV Jobs
-  getGGVJobs(date: string): Promise<GGVJob[]>;
+  getGGVJobs(date: string): Promise<GGVJobWithAssignee[]>;
   getGGVJob(id: number): Promise<GGVJob | undefined>;
   createGGVJob(data: InsertGGVJob): Promise<GGVJob>;
   updateGGVJob(id: number, data: Partial<InsertGGVJob>): Promise<GGVJob | undefined>;
@@ -191,6 +199,7 @@ export interface IStorage {
   deleteGGVJobs(ids: number[]): Promise<number>;
   createQuoteFromGGV(ggv: GGVJob): Promise<number>;
   syncQuoteFromGGV(quoteId: number, ggv: GGVJob): Promise<void>;
+  assignGGVJobs(ids: number[], assignedStaffId: number | null | undefined, assignedTeamId: number | null | undefined): Promise<{ count: number; staffIds: number[] }>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -974,7 +983,7 @@ export class DatabaseStorage implements IStorage {
     return detailedQuote;
   }
 
-  async updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null) {
+  async updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number | null, assignedTeamId?: number | null) {
     const updateData: Partial<typeof quotes.$inferInsert> = { status };
     if (assignedStaffId !== undefined) {
       updateData.assignedStaffId = assignedStaffId;
@@ -1941,8 +1950,29 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(whatsappMessages.phone, phone), eq(whatsappMessages.direction, 'inbound'), isNull(whatsappMessages.readAt)));
   }
 
-  async getGGVJobs(date: string): Promise<GGVJob[]> {
-    return db.select().from(ggvJobs).where(eq(ggvJobs.date, date)).orderBy(ggvJobs.id);
+  async getGGVJobs(date: string): Promise<GGVJobWithAssignee[]> {
+    // Join the mirrored operational job so each GGV row carries its current
+    // staff/team assignment for inline display & editing on the tracker.
+    const rows = await db
+      .select({
+        ggv: ggvJobs,
+        qStaffId: quotes.assignedStaffId,
+        qTeamId: quotes.assignedTeamId,
+        staffName: users.name,
+        teamName: teams.name,
+      })
+      .from(ggvJobs)
+      .leftJoin(quotes, eq(ggvJobs.quoteId, quotes.id))
+      .leftJoin(users, eq(quotes.assignedStaffId, users.id))
+      .leftJoin(teams, eq(quotes.assignedTeamId, teams.id))
+      .where(eq(ggvJobs.date, date))
+      .orderBy(ggvJobs.id);
+    return rows.map(r => ({
+      ...r.ggv,
+      assignedStaffId: r.qStaffId ?? null,
+      assignedTeamId: r.qTeamId ?? null,
+      assigneeName: r.teamName ?? r.staffName ?? null,
+    }));
   }
   async getGGVJob(id: number): Promise<GGVJob | undefined> {
     const [row] = await db.select().from(ggvJobs).where(eq(ggvJobs.id, id)).limit(1);
@@ -1970,6 +2000,42 @@ export class DatabaseStorage implements IStorage {
     const rows = await db.delete(ggvJobs).where(inArray(ggvJobs.id, ids)).returning({ id: ggvJobs.id });
     for (const r of linked) if (r.quoteId) await this.deleteQuote(r.quoteId);
     return rows.length;
+  }
+
+  // Assign (or unassign) staff/team to one or many GGV jobs at once via their
+  // mirrored operational jobs. Older GGV rows without a linked job get one
+  // created on first assign (same backfill the PATCH route does).
+  // Pass assignedStaffId=null to clear the assignment (sends the job back to
+  // 'booked'); otherwise pass either assignedStaffId OR assignedTeamId.
+  async assignGGVJobs(
+    ids: number[],
+    assignedStaffId: number | null | undefined,
+    assignedTeamId: number | null | undefined,
+  ): Promise<{ count: number; staffIds: number[] }> {
+    const staffIds: number[] = [];
+    let count = 0;
+    const unassign = assignedStaffId === null && (assignedTeamId === null || assignedTeamId === undefined);
+    for (const id of ids) {
+      let job = await this.getGGVJob(id);
+      if (!job) continue;
+      if (!job.quoteId) {
+        try {
+          const quoteId = await this.createQuoteFromGGV(job);
+          job = (await this.updateGGVJob(id, { quoteId })) || job;
+        } catch { continue; }
+      }
+      if (!job.quoteId) continue;
+      await this.updateQuoteStatus(
+        job.quoteId,
+        unassign ? "booked" : "assigned",
+        { actorType: "admin" },
+        assignedStaffId,
+        assignedTeamId,
+      );
+      count++;
+      if (typeof assignedStaffId === "number") staffIds.push(assignedStaffId);
+    }
+    return { count, staffIds: Array.from(new Set(staffIds)) };
   }
 
   // Translate a GGV job row into the fields of its mirrored operational job.

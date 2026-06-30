@@ -12637,6 +12637,45 @@ Return ONLY valid JSON:
     return res.json({ ok: true, deleted });
   });
 
+  // POST /api/admin/ggv-jobs/assign — assign (or unassign) staff/team to one or
+  // many GGV jobs. Body: { ids: number[], assignedStaffId?: number|null, assignedTeamId?: number|null }.
+  // Pass assignedStaffId:null to unassign. Used by both the inline per-row
+  // dropdown (single id) and the bulk "Assign" action (many ids).
+  app.post("/api/admin/ggv-jobs/assign", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const body = z.object({
+        ids: z.array(z.number().int().positive()).min(1),
+        assignedStaffId: z.number().int().positive().nullable().optional(),
+        assignedTeamId: z.number().int().positive().nullable().optional(),
+      }).refine(
+        b => !(typeof b.assignedStaffId === "number" && typeof b.assignedTeamId === "number"),
+        { message: "Provide either a staff member or a team, not both" },
+      ).parse(req.body);
+      const ids = Array.from(new Set(body.ids));
+      const { count, staffIds } = await storage.assignGGVJobs(ids, body.assignedStaffId, body.assignedTeamId);
+      // Best-effort push to any newly assigned staff (never blocks the response).
+      if (staffIds.length) {
+        try {
+          const tokens = await storage.getFcmTokensByUserIds(staffIds);
+          if (tokens.length) {
+            await sendPushNotification(
+              tokens,
+              "Job Assigned — TMG Install",
+              count === 1 ? "You've been assigned a new job" : `You've been assigned ${count} jobs`,
+              { path: "/staff" },
+            );
+          }
+        } catch (pushErr: any) {
+          console.error("[GGV] assign push failed:", pushErr?.message || pushErr);
+        }
+      }
+      return res.json({ ok: true, count });
+    } catch (e: any) { return res.status(400).json({ message: e.message }); }
+  });
+
   // ── Subcontractors ────────────────────────────────────────────────────────
   // GET /api/admin/subcontractors — list all subcontractors
   app.get("/api/admin/subcontractors", async (req, res) => {

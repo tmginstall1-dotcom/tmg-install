@@ -15,7 +15,7 @@ import {
 import {
  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
  TruckIcon, Flag, AlertCircle, Upload, Loader2, CheckCheck,
- FileImage, Eye, ArrowUpRight,
+ FileImage, Eye, ArrowUpRight, UserPlus,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -39,7 +39,13 @@ type GGVJob = {
  ratePerKm: string | null;
  flagged: boolean;
  quoteId: number | null;
+ assignedStaffId: number | null;
+ assignedTeamId: number | null;
+ assigneeName: string | null;
 };
+
+type Team = { id: number; name: string };
+type Staff = { id: number; name: string };
 
 type ScannedJob = {
  jobNo: string | null;
@@ -142,6 +148,8 @@ export default function GGVJobs() {
  const [deleteId, setDeleteId] = useState<number | null>(null);
  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+ const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+ const [bulkAssignee, setBulkAssignee] = useState("");
 
  // Scan state
  const fileInputRef = useRef<HTMLInputElement>(null);
@@ -198,6 +206,49 @@ export default function GGVJobs() {
  },
  onError: (e: any) => toast({ title: "Bulk delete failed", description: e.message, variant: "destructive" }),
  });
+
+ // Teams & staff for the assignment dropdowns (admin-gated, same as elsewhere).
+ const { data: teamsList = [] } = useQuery<Team[]>({ queryKey: ["/api/teams"] });
+ const { data: staffList = [] } = useQuery<Staff[]>({ queryKey: ["/api/staff"] });
+
+ const assignMut = useMutation({
+ mutationFn: (payload: { ids: number[]; assignedStaffId?: number | null; assignedTeamId?: number | null }) =>
+ apiRequest("POST", "/api/admin/ggv-jobs/assign", payload),
+ onSuccess: async (res: any, vars) => {
+ const data = await (res?.json ? res.json() : Promise.resolve(res));
+ const n = data?.count ?? vars.ids.length;
+ queryClient.invalidateQueries({ queryKey });
+ toast({ title: n === 1 ? "Job assigned" : `${n} jobs assigned` });
+ },
+ onError: (e: any) => toast({ title: "Assign failed", description: e.message, variant: "destructive" }),
+ });
+
+ // Translate a job's current assignment into the <select> value, and back.
+ function assigneeValue(job: GGVJob) {
+ if (job.assignedTeamId) return `team:${job.assignedTeamId}`;
+ if (job.assignedStaffId) return `staff:${job.assignedStaffId}`;
+ return "";
+ }
+ function parseAssignee(value: string): { assignedStaffId?: number | null; assignedTeamId?: number | null } {
+ if (!value) return { assignedStaffId: null };
+ const [type, rawId] = value.split(":");
+ const numId = parseInt(rawId, 10);
+ return type === "team" ? { assignedTeamId: numId } : { assignedStaffId: numId };
+ }
+ function handleInlineAssign(job: GGVJob, value: string) {
+ if (value === assigneeValue(job)) return;
+ assignMut.mutate({ ids: [job.id], ...parseAssignee(value) });
+ }
+ async function handleBulkAssign() {
+ const ids = Array.from(selectedIds);
+ if (!ids.length) return;
+ try {
+ await assignMut.mutateAsync({ ids, ...parseAssignee(bulkAssignee) });
+ setSelectedIds(new Set());
+ setBulkAssignOpen(false);
+ setBulkAssignee("");
+ } catch { /* error toast handled by mutation */ }
+ }
 
  // Reset selection whenever the visible job set changes (date change, refresh, etc.)
  // Drop any selected IDs that no longer exist in the current page.
@@ -408,7 +459,17 @@ export default function GGVJobs() {
  </div>
  </div>
  <div className="flex items-center gap-2 flex-wrap">
- {/* Bulk delete — only visible when rows are selected */}
+ {/* Bulk assign & delete — only visible when rows are selected */}
+ {selectedIds.size > 0 && (
+ <Button
+ onClick={() => { setBulkAssignee(""); setBulkAssignOpen(true); }}
+ variant="outline"
+ data-testid="btn-bulk-assign"
+ className="border-black/15 text-[#0A0A0A] hover:bg-black/5 font-bold text-xs gap-1.5"
+ >
+ <UserPlus className="w-3.5 h-3.5" /> Assign {selectedIds.size}
+ </Button>
+ )}
  {selectedIds.size > 0 && (
  <Button
  onClick={() => setBulkDeleteOpen(true)}
@@ -604,6 +665,24 @@ export default function GGVJobs() {
  )}
  </div>
  <div className="flex items-center gap-1">
+ <select
+ value={assigneeValue(job)}
+ onChange={(e) => handleInlineAssign(job, e.target.value)}
+ disabled={assignMut.isPending}
+ data-testid={`select-assignee-${job.id}`}
+ title="Assign staff or team"
+ className="max-w-[7.5rem] text-[11px] bg-white border border-black/15 rounded-none px-1.5 py-1 text-[#0A0A0A] focus:outline-none focus:border-black/40 disabled:opacity-50"
+ >
+ <option value="">Unassigned</option>
+ {teamsList.length > 0 && (
+ <optgroup label="Teams">
+ {teamsList.map((t) => <option key={`team:${t.id}`} value={`team:${t.id}`}>{t.name}</option>)}
+ </optgroup>
+ )}
+ <optgroup label="Staff">
+ {staffList.map((s) => <option key={`staff:${s.id}`} value={`staff:${s.id}`}>{s.name}</option>)}
+ </optgroup>
+ </select>
  {job.quoteId && (
  <Link
  href={`/admin/quotes/${job.quoteId}`}
@@ -656,7 +735,7 @@ export default function GGVJobs() {
  {/* ── Desktop table (≥ md) ─────────────────────────────────────────────── */}
  <div className="hidden md:block rounded-none border border-black/10 overflow-hidden bg-white">
  <div className="overflow-x-auto">
- <table className="w-full text-sm min-w-[1100px]">
+ <table className="w-full text-sm min-w-[1260px]">
  <thead>
  <tr className="border-b border-black/10 bg-white">
  <th className="px-3 py-2.5 w-10">
@@ -678,17 +757,18 @@ export default function GGVJobs() {
  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/55 w-20">Postal</th>
  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/55 w-20">Dist km</th>
  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/55 w-16">Rate</th>
+ <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/55 w-40">Assignee</th>
  <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-black/55">Remarks</th>
  <th className="px-3 py-2.5 w-16"></th>
  </tr>
  </thead>
  <tbody>
  {isLoading && (
- <tr><td colSpan={14} className="text-center py-12 text-black/55 text-sm">Loading…</td></tr>
+ <tr><td colSpan={15} className="text-center py-12 text-black/55 text-sm">Loading…</td></tr>
  )}
  {!isLoading && jobs.length === 0 && (
  <tr>
- <td colSpan={14} className="text-center py-12">
+ <td colSpan={15} className="text-center py-12">
  <div className="flex flex-col items-center gap-3 text-black/75">
  <FileImage className="w-10 h-10" />
  <div>
@@ -759,6 +839,26 @@ export default function GGVJobs() {
  <td className="px-3 py-2.5 text-xs text-black/55">{job.postalCode || "—"}</td>
  <td className="px-3 py-2.5 text-right text-xs text-black/55">{job.distanceKm ? parseFloat(job.distanceKm).toFixed(2) : "—"}</td>
  <td className="px-3 py-2.5 text-right text-xs text-black/55">{job.ratePerKm ? parseFloat(job.ratePerKm).toFixed(2) : "—"}</td>
+ <td className="px-3 py-2.5">
+ <select
+ value={assigneeValue(job)}
+ onChange={(e) => handleInlineAssign(job, e.target.value)}
+ disabled={assignMut.isPending}
+ data-testid={`select-assignee-table-${job.id}`}
+ title="Assign staff or team"
+ className="w-full max-w-[9rem] text-xs bg-white border border-black/15 rounded-none px-1.5 py-1 text-[#0A0A0A] focus:outline-none focus:border-black/40 disabled:opacity-50"
+ >
+ <option value="">Unassigned</option>
+ {teamsList.length > 0 && (
+ <optgroup label="Teams">
+ {teamsList.map((t) => <option key={`team:${t.id}`} value={`team:${t.id}`}>{t.name}</option>)}
+ </optgroup>
+ )}
+ <optgroup label="Staff">
+ {staffList.map((s) => <option key={`staff:${s.id}`} value={`staff:${s.id}`}>{s.name}</option>)}
+ </optgroup>
+ </select>
+ </td>
  <td className="px-3 py-2.5 text-xs text-[#C1121F] max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
  <td className="px-3 py-2.5">
  <div className="flex items-center gap-1 justify-end">
@@ -786,7 +886,7 @@ export default function GGVJobs() {
  <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-black/65">${totalListed.toFixed(2)}</td>
  <td className="px-3 py-3 text-right text-xs font-bold tabular-nums text-[#C1121F]">{totalDeduction > 0 ? `-$${totalDeduction.toFixed(2)}` : "—"}</td>
  <td className="px-3 py-3 text-right"><span className="text-base font-black tabular-nums text-[#0A0A0A]">${totalActual.toFixed(2)}</span></td>
- <td colSpan={7} />
+ <td colSpan={8} />
  </tr>
  </tfoot>
  )}
@@ -1098,6 +1198,48 @@ export default function GGVJobs() {
  data-testid="btn-confirm-bulk-delete"
  >
  {bulkDeleteMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</> : <><Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}</>}
+ </Button>
+ </DialogFooter>
+ </DialogContent>
+ </Dialog>
+
+ {/* Bulk assign */}
+ <Dialog open={bulkAssignOpen} onOpenChange={v => { if (!assignMut.isPending) setBulkAssignOpen(v); }}>
+ <DialogContent className="bg-white border-black/10 text-[#0A0A0A] max-w-sm">
+ <DialogHeader>
+ <DialogTitle className="flex items-center gap-2">
+ <UserPlus className="w-5 h-5" /> Assign {selectedIds.size} job{selectedIds.size !== 1 ? "s" : ""}
+ </DialogTitle>
+ </DialogHeader>
+ <p className="text-sm text-black/55">
+ Choose a team or staff member for the selected job{selectedIds.size !== 1 ? "s" : ""}, or set to Unassigned to clear.
+ </p>
+ <select
+ value={bulkAssignee}
+ onChange={(e) => setBulkAssignee(e.target.value)}
+ disabled={assignMut.isPending}
+ data-testid="select-bulk-assignee"
+ className="w-full text-sm bg-white border border-black/15 rounded-none px-2.5 py-2 text-[#0A0A0A] focus:outline-none focus:border-black/40 disabled:opacity-50"
+ >
+ <option value="">Unassigned (clear)</option>
+ {teamsList.length > 0 && (
+ <optgroup label="Teams">
+ {teamsList.map((t) => <option key={`team:${t.id}`} value={`team:${t.id}`}>{t.name}</option>)}
+ </optgroup>
+ )}
+ <optgroup label="Staff">
+ {staffList.map((s) => <option key={`staff:${s.id}`} value={`staff:${s.id}`}>{s.name}</option>)}
+ </optgroup>
+ </select>
+ <DialogFooter className="gap-2">
+ <Button variant="ghost" onClick={() => setBulkAssignOpen(false)} disabled={assignMut.isPending} className="text-black/55 hover:text-[#0A0A0A]">Cancel</Button>
+ <Button
+ onClick={handleBulkAssign}
+ disabled={assignMut.isPending || selectedIds.size === 0}
+ className="bg-[#0A0A0A] hover:bg-[#0A0A0A] text-white font-black gap-1.5"
+ data-testid="btn-confirm-bulk-assign"
+ >
+ {assignMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Assigning…</> : <><UserPlus className="w-3.5 h-3.5" /> Assign {selectedIds.size}</>}
  </Button>
  </DialogFooter>
  </DialogContent>
