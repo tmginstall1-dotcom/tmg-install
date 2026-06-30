@@ -12546,7 +12546,17 @@ Return ONLY valid JSON:
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       const job = await storage.createGGVJob(req.body);
-      return res.status(201).json(job);
+      // Mirror it into a normal operational job so it lands on the dashboard,
+      // can be assigned to staff, supports staff photos / status updates, and is
+      // GPS-tracked. Failure to mirror must not block the GGV import.
+      let result = job;
+      try {
+        const quoteId = await storage.createQuoteFromGGV(job);
+        result = (await storage.updateGGVJob(job.id, { quoteId })) || job;
+      } catch (linkErr: any) {
+        console.error("[GGV] failed to create linked job:", linkErr?.message || linkErr);
+      }
+      return res.status(201).json(result);
     } catch (e: any) { return res.status(400).json({ message: e.message }); }
   });
 
@@ -12557,8 +12567,20 @@ Return ONLY valid JSON:
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const id = Number(req.params.id);
     try {
-      const job = await storage.updateGGVJob(id, req.body);
+      let job = await storage.updateGGVJob(id, req.body);
       if (!job) return res.status(404).json({ message: "Not found" });
+      // Keep the mirrored operational job in step. Older GGV rows created before
+      // linking existed get a job created on first edit.
+      try {
+        if (job.quoteId) {
+          await storage.syncQuoteFromGGV(job.quoteId, job);
+        } else {
+          const quoteId = await storage.createQuoteFromGGV(job);
+          job = (await storage.updateGGVJob(id, { quoteId })) || job;
+        }
+      } catch (linkErr: any) {
+        console.error("[GGV] failed to sync linked job:", linkErr?.message || linkErr);
+      }
       return res.json(job);
     } catch (e: any) { return res.status(400).json({ message: e.message }); }
   });

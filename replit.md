@@ -43,6 +43,9 @@ The customer estimator's category tabs have been updated to improve discoverabil
 ### Per-job Staff Transport Allowance
 Admins can toggle "Pay $8 transport allowance to assigned staff" on each job (in the QuoteDetail edit form). When enabled, every staff member who worked the job — either the single assigned staff or every member of the assigned team — receives $8 for that job. The payslip generator sums these entries within the pay period and shows them as a separate "Transport Allowance" line on the payslip (both on-screen and on the printed PDF).
 
+### GoGoVan (GGV) Job Mirroring
+GoGoVan jobs added or AI-imported in the GGV tab automatically mirror into a real operational job (a `quotes` record) so they appear on the admin dashboard, can be assigned to staff like any normal job, support staff photo/status updates, are admin-reviewable, and are GPS-tracked. The mirrored quote is `status: 'booked'`, `sourceChannel: 'gogovan'`, with total/subtotal `$0` so GGV financials (which remain on `ggv_jobs`) are never double-counted in revenue. All GGV jobs reuse one shared synthetic "GoGoVan Job" customer to keep the customer directory clean. Editing a GGV job syncs its linked job's address/schedule (and backfills a link for older rows); deleting a GGV job (single or bulk) removes the linked job too. Each linked GGV row shows an "open on dashboard" link.
+
 ## External Dependencies
 
 - **PostgreSQL**: Primary relational database.

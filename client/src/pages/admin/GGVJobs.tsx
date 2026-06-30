@@ -15,8 +15,9 @@ import {
 import {
  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
  TruckIcon, Flag, AlertCircle, Upload, Loader2, CheckCheck,
- FileImage, Eye,
+ FileImage, Eye, ArrowUpRight,
 } from "lucide-react";
+import { Link } from "wouter";
 
 type GGVJob = {
  id: number;
@@ -37,6 +38,7 @@ type GGVJob = {
  distanceKm: string | null;
  ratePerKm: string | null;
  flagged: boolean;
+ quoteId: number | null;
 };
 
 type ScannedJob = {
@@ -602,6 +604,16 @@ export default function GGVJobs() {
  )}
  </div>
  <div className="flex items-center gap-1">
+ {job.quoteId && (
+ <Link
+ href={`/admin/quotes/${job.quoteId}`}
+ data-testid={`link-dashboard-${job.id}`}
+ title="Open job on dashboard"
+ className="p-1.5 rounded text-black/55 hover:text-[#0A0A0A] hover:bg-white/10 transition-colors"
+ >
+ <ArrowUpRight className="w-3.5 h-3.5" />
+ </Link>
+ )}
  <button
  onClick={() => openEdit(job)}
  data-testid={`btn-edit-${job.id}`}
@@ -750,6 +762,11 @@ export default function GGVJobs() {
  <td className="px-3 py-2.5 text-xs text-[#C1121F] max-w-[10rem] truncate" title={job.remarks ?? ""}>{job.remarks || "—"}</td>
  <td className="px-3 py-2.5">
  <div className="flex items-center gap-1 justify-end">
+ {job.quoteId && (
+ <Link href={`/admin/quotes/${job.quoteId}`} data-testid={`link-dashboard-${job.id}`} title="Open job on dashboard" className="p-1.5 rounded text-black/55 hover:text-[#0A0A0A] hover:bg-white/10 transition-colors">
+ <ArrowUpRight className="w-3.5 h-3.5" />
+ </Link>
+ )}
  <button onClick={() => openEdit(job)} data-testid={`btn-edit-${job.id}`} className="p-1.5 rounded text-black/55 hover:text-[#0A0A0A] hover:bg-white/10 transition-colors">
  <Pencil className="w-3.5 h-3.5" />
  </button>

@@ -732,6 +732,12 @@ export const ggvJobs = pgTable("ggv_jobs", {
   distanceKm: numeric("distance_km"),
   ratePerKm: numeric("rate_per_km"),
   flagged: boolean("flagged").notNull().default(false),
+  // Linked operational job. Each GGV job mirrors into a normal quote/job so it
+  // shows on the dashboard, can be assigned to staff, supports staff photo /
+  // status updates, and is GPS-tracked like any other job. The linked quote's
+  // total stays $0 — GGV financials (listed/deduction/actual) live only here so
+  // revenue is never double-counted.
+  quoteId: integer("quote_id").references(() => quotes.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type GGVJob = typeof ggvJobs.$inferSelect;

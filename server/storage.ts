@@ -3,7 +3,7 @@ import { calcSecondDayContinuation, requiresFullUpfront, reconcileQuoteTotal, Pr
 import { 
   users, customers, catalogItems, quotes, quoteItems, jobUpdates, blockedSlots, teams, attendanceLogs,
   attendanceAmendments, leaveRequests, payslips, staffLoans, gpsTrackPoints, siteEvents, whatsappSessions, whatsappMessages,
-  receipts, faqEntries, cannedReplies, pricingCorrections, ggvJobs,
+  receipts, faqEntries, cannedReplies, pricingCorrections, ggvJobs, jobChecklists,
   quotePayments, type QuotePayment, type InsertQuotePayment,
   type InsertUser, type InsertCustomer, type InsertCatalogItem, type InsertQuote, type InsertQuoteItem, type InsertJobUpdate,
   type QuoteResponse, type InsertBlockedSlot, type BlockedSlot,
@@ -26,6 +26,7 @@ import {
   quickReplyTemplates, type QuickReplyTemplate, type InsertQuickReplyTemplate,
 } from "@shared/schema";
 import { eq, desc, or, inArray, isNotNull, and, not, gte, lte, isNull, sql, count } from "drizzle-orm";
+import { randomBytes } from "crypto";
 
 export interface IStorage {
   // Users
@@ -183,10 +184,13 @@ export interface IStorage {
 
   // GGV Jobs
   getGGVJobs(date: string): Promise<GGVJob[]>;
+  getGGVJob(id: number): Promise<GGVJob | undefined>;
   createGGVJob(data: InsertGGVJob): Promise<GGVJob>;
   updateGGVJob(id: number, data: Partial<InsertGGVJob>): Promise<GGVJob | undefined>;
   deleteGGVJob(id: number): Promise<void>;
   deleteGGVJobs(ids: number[]): Promise<number>;
+  createQuoteFromGGV(ggv: GGVJob): Promise<number>;
+  syncQuoteFromGGV(quoteId: number, ggv: GGVJob): Promise<void>;
 
   // Site Analytics
   addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent>;
@@ -1480,6 +1484,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteQuote(id: number): Promise<void> {
+    await db.delete(jobChecklists).where(eq(jobChecklists.quoteId, id));
+    await db.delete(quoteDisputeEvents).where(eq(quoteDisputeEvents.quoteId, id));
     await db.delete(jobUpdates).where(eq(jobUpdates.quoteId, id));
     await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
     await db.delete(quotes).where(eq(quotes.id, id));
@@ -1896,6 +1902,10 @@ export class DatabaseStorage implements IStorage {
   async getGGVJobs(date: string): Promise<GGVJob[]> {
     return db.select().from(ggvJobs).where(eq(ggvJobs.date, date)).orderBy(ggvJobs.id);
   }
+  async getGGVJob(id: number): Promise<GGVJob | undefined> {
+    const [row] = await db.select().from(ggvJobs).where(eq(ggvJobs.id, id)).limit(1);
+    return row;
+  }
   async createGGVJob(data: InsertGGVJob): Promise<GGVJob> {
     const [row] = await db.insert(ggvJobs).values(data).returning();
     return row;
@@ -1905,12 +1915,90 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
   async deleteGGVJob(id: number): Promise<void> {
+    // Remove the linked operational job too, so deleting a GGV row also clears it
+    // off the dashboard / staff app. Delete the GGV row FIRST — it holds the FK
+    // to the quote, so the quote can't be removed while it still points back.
+    const [row] = await db.select({ quoteId: ggvJobs.quoteId }).from(ggvJobs).where(eq(ggvJobs.id, id)).limit(1);
     await db.delete(ggvJobs).where(eq(ggvJobs.id, id));
+    if (row?.quoteId) await this.deleteQuote(row.quoteId);
   }
   async deleteGGVJobs(ids: number[]): Promise<number> {
     if (!ids.length) return 0;
+    const linked = await db.select({ quoteId: ggvJobs.quoteId }).from(ggvJobs).where(inArray(ggvJobs.id, ids));
     const rows = await db.delete(ggvJobs).where(inArray(ggvJobs.id, ids)).returning({ id: ggvJobs.id });
+    for (const r of linked) if (r.quoteId) await this.deleteQuote(r.quoteId);
     return rows.length;
+  }
+
+  // Translate a GGV job row into the fields of its mirrored operational job.
+  // Address: street + postal; schedule: GGV date + start time pinned to SGT
+  // (UTC+8) so it buckets onto the right working day for GPS tracking.
+  private ggvQuoteFields(ggv: GGVJob): { serviceAddress: string; scheduledAt: Date | null; timeWindow: string | null } {
+    const addr = [ggv.address, ggv.postalCode].filter(Boolean).join(" ").trim();
+    const fallback = `GoGoVan job${ggv.jobNo ? " " + ggv.jobNo : ggv.bookingRef ? " " + ggv.bookingRef : ""}`.trim();
+    const serviceAddress = addr || fallback || "GoGoVan job";
+    let scheduledAt: Date | null = null;
+    if (ggv.date) {
+      const t = ggv.timeStart && /^\d{1,2}:\d{2}$/.test(ggv.timeStart) ? ggv.timeStart.padStart(5, "0") : "09:00";
+      const d = new Date(`${ggv.date}T${t}:00+08:00`);
+      if (!isNaN(d.getTime())) scheduledAt = d;
+    }
+    const timeWindow = ggv.timeStart ? (ggv.timeEnd ? `${ggv.timeStart}-${ggv.timeEnd}` : ggv.timeStart) : null;
+    return { serviceAddress, scheduledAt, timeWindow };
+  }
+
+  // All GGV jobs share one synthetic "customer" so the customer directory isn't
+  // polluted with one throwaway contact per delivery. The job address carries
+  // the real location.
+  private async ensureGGVCustomer(): Promise<number> {
+    const email = "gogovan-jobs@tmginstall.local";
+    const [existing] = await db.select().from(customers).where(eq(customers.email, email)).limit(1);
+    if (existing) return existing.id;
+    const [c] = await db.insert(customers).values({ name: "GoGoVan Job", email, phone: "-" }).returning();
+    return c.id;
+  }
+
+  async createQuoteFromGGV(ggv: GGVJob): Promise<number> {
+    const customerId = await this.ensureGGVCustomer();
+    const { serviceAddress, scheduledAt, timeWindow } = this.ggvQuoteFields(ggv);
+    const referenceNo = `TMG-${randomBytes(6).toString("hex").toUpperCase()}`;
+    const noteParts = ["GoGoVan", ggv.vehicleGroup, ggv.jobNo, ggv.serviceType].filter(Boolean);
+    const [q] = await db.insert(quotes).values({
+      referenceNo,
+      customerId,
+      serviceAddress,
+      status: "booked",            // ready to assign on the dashboard
+      sourceChannel: "gogovan",
+      scheduledAt,
+      timeWindow,
+      subtotal: "0",
+      total: "0",                  // GGV money lives on ggv_jobs; keep this $0
+      requiresManualReview: false,
+      notes: noteParts.join(" · "),
+    }).returning();
+    await db.insert(quoteItems).values({
+      quoteId: q.id,
+      originalDescription: `GoGoVan ${ggv.serviceType || "delivery / installation"}`.trim(),
+      serviceType: "fee",
+      quantity: 1,
+      unitPrice: "0",
+      subtotal: "0",
+    });
+    await db.insert(jobUpdates).values({
+      quoteId: q.id,
+      statusChange: "booked",
+      actorType: "system",
+      note: "GoGoVan job imported — ready to assign",
+    });
+    return q.id;
+  }
+
+  // Keep the mirrored job's address / schedule in step when the GGV row is
+  // edited. Only touches location + timing — never the assignment or status,
+  // which are owned by the normal job workflow.
+  async syncQuoteFromGGV(quoteId: number, ggv: GGVJob): Promise<void> {
+    const { serviceAddress, scheduledAt, timeWindow } = this.ggvQuoteFields(ggv);
+    await db.update(quotes).set({ serviceAddress, scheduledAt, timeWindow }).where(eq(quotes.id, quoteId));
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {

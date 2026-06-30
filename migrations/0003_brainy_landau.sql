@@ -1,0 +1,2 @@
+ALTER TABLE "ggv_jobs" ADD COLUMN "quote_id" integer;--> statement-breakpoint
+ALTER TABLE "ggv_jobs" ADD CONSTRAINT "ggv_jobs_quote_id_quotes_id_fk" FOREIGN KEY ("quote_id") REFERENCES "public"."quotes"("id") ON DELETE no action ON UPDATE no action;
