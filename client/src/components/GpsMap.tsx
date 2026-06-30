@@ -322,7 +322,7 @@ export default function GpsMap({ points, height = 520, isLive = false }: GpsMapP
   return (
     <div
       data-testid="gps-map-container"
-      className={isFullscreen ? "fixed inset-0 z-[9999] flex flex-col bg-black" : "relative w-full"}
+      className={isFullscreen ? "fixed inset-0 z-[9999] flex flex-col bg-black" : "relative w-full isolate"}
       style={isFullscreen ? undefined : { height }}
     >
       {/* ─── Map canvas ─── */}
