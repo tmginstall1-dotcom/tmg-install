@@ -105,6 +105,7 @@ export interface IStorage {
   getQuotes(status?: string): Promise<QuoteResponse[]>;
   getQuotesByStatuses(statuses: string[]): Promise<QuoteResponse[]>;
   getQuotesForStaff(staffId: number): Promise<QuoteResponse[]>;
+  getQuotesAssignedTo(staffId: number): Promise<QuoteResponse[]>;
   getQuote(id: number): Promise<QuoteResponse | undefined>;
   createQuote(customer: InsertCustomer, quote: Omit<InsertQuote, 'customerId'>, items: InsertQuoteItem[]): Promise<QuoteResponse>;
   updateQuoteStatus(id: number, status: string, updateRecord?: Omit<InsertJobUpdate, 'quoteId' | 'statusChange'>, assignedStaffId?: number, assignedTeamId?: number | null): Promise<QuoteResponse | undefined>;
@@ -743,6 +744,24 @@ export class DatabaseStorage implements IStorage {
     const myTeamId = me?.teamId;
 
     const conditions = [inArray(quotes.assignedStaffId, teammateIds)];
+    if (myTeamId) {
+      conditions.push(eq(quotes.assignedTeamId, myTeamId));
+    }
+
+    const quotesList = await db.select().from(quotes)
+      .where(or(...conditions))
+      .orderBy(desc(quotes.createdAt));
+    return this.fetchQuoteDetailsBatch(quotesList);
+  }
+
+  async getQuotesAssignedTo(staffId: number): Promise<QuoteResponse[]> {
+    // Scoped strictly to THIS staff member: jobs assigned directly to them, or
+    // to the team they belong to. Unlike getQuotesForStaff this does NOT pull in
+    // teammates' solo assignments — used for per-person payroll / job-site checks.
+    const [me] = await db.select().from(users).where(eq(users.id, staffId));
+    const myTeamId = me?.teamId;
+
+    const conditions = [eq(quotes.assignedStaffId, staffId)];
     if (myTeamId) {
       conditions.push(eq(quotes.assignedTeamId, myTeamId));
     }

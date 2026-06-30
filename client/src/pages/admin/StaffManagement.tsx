@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -2939,6 +2939,251 @@ function MoveRow({ seg, idx }: { seg: MoveSegment; idx: number }) {
  );
 }
 
+// ── Job-site / payroll check ──────────────────────────────────────────────
+// Matches a staff member's GPS stops against the geocoded addresses of the
+// jobs assigned to them that day. Surfaces, per the Staff Handbook GPS / payroll
+// rules: which job sites were actually visited, how long staff spent on site,
+// and any long stops (>15 min) AWAY from every assigned job — the "dragging
+// hours" / personal-detour signal admins use to check payroll and OT claims.
+const JOB_MATCH_RADIUS_M = 150; // GPS + geocode slop — treat within 150 m as "at this site"
+const OFFJOB_LONG_MIN = 15;     // Handbook: a stop over 15 min should have been reported
+
+type DayJobSite = { label: string; address: string; lat: number | null; lng: number | null };
+type DayJob = {
+  id: number;
+  referenceNo: string;
+  customer: string | null;
+  status: string;
+  scheduledAt: string | null;
+  timeWindow: string | null;
+  sites: DayJobSite[];
+};
+
+/** One flagged off-job stop row — looks up a human-readable street for the spot. */
+function OffJobStopRow({ lat, lng, startTime, endTime, durSec, isOngoing, now }: {
+  lat: number; lng: number; startTime: Date; endTime: Date; durSec: number; isOngoing: boolean; now: Date;
+}) {
+  const addr = useStopAddress(lat, lng);
+  const liveSec = isOngoing ? Math.max(0, Math.floor((now.getTime() - startTime.getTime()) / 1000)) : durSec;
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+  return (
+    <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-black/5 last:border-b-0">
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-[#0A0A0A] truncate">{addr || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}</p>
+        <p className="text-[11px] text-[#0A0A0A]/55 font-semibold">
+          {format(startTime, "HH:mm")}{isOngoing ? " — now" : `–${format(endTime, "HH:mm")}`} · not at any job
+          {" · "}
+          <a href={mapsUrl} target="_blank" rel="noreferrer" className="underline">map</a>
+        </p>
+      </div>
+      <span className={`shrink-0 px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider rounded-none ${isOngoing ? "bg-[#C1121F] text-white" : "bg-[#FBEBEB] text-[#C1121F] border border-[#C1121F]/30"}`}>
+        {fmtDuration(liveSec)}
+      </span>
+    </div>
+  );
+}
+
+function JobSiteCheck({ staffId, date, stops, now }: {
+  staffId: number | null; date: string; stops: StopSegment[]; now: Date;
+}) {
+  const { data, isLoading } = useQuery<{ jobs: DayJob[] }>({
+    queryKey: ["/api/admin/staff", staffId, "day-jobs", date],
+    queryFn: async () => {
+      if (!staffId) return { jobs: [] };
+      const r = await fetch(`${API_BASE}/api/admin/staff/${staffId}/day-jobs?date=${date}`, { credentials: "include" });
+      if (!r.ok) return { jobs: [] };
+      return r.json();
+    },
+    enabled: !!staffId,
+  });
+
+  const jobs = data?.jobs ?? [];
+
+  // Every geocoded site across all of today's jobs, with a stable key.
+  const geoSites = useMemo(() => {
+    const out: { key: string; jobId: number; lat: number; lng: number }[] = [];
+    jobs.forEach(j => j.sites.forEach((s, i) => {
+      if (s.lat != null && s.lng != null) out.push({ key: `${j.id}:${i}`, jobId: j.id, lat: s.lat, lng: s.lng });
+    }));
+    return out;
+  }, [jobs]);
+
+  // Assign each GPS stop to its nearest job site (if within radius) or mark it
+  // off-job. A "stop" is the unit of time the staff member spent in one place.
+  const stopInfos = useMemo(() => stops.map(st => {
+    let bestKey: string | null = null;
+    let bestD = Infinity;
+    for (const site of geoSites) {
+      const d = haversineM(st.lat, st.lng, site.lat, site.lng);
+      if (d < bestD) { bestD = d; bestKey = site.key; }
+    }
+    const onJob = bestKey != null && bestD <= JOB_MATCH_RADIUS_M;
+    const end = st.isOngoing ? now : st.endTime;
+    const durSec = Math.max(0, Math.floor((end.getTime() - st.startTime.getTime()) / 1000));
+    return { st, siteKey: onJob ? bestKey! : null, durSec };
+  }), [stops, geoSites, now]);
+
+  // Per-site "visited" is judged independently against THAT site's coordinates
+  // (any stop within radius counts), so two jobs at the same building both read
+  // as visited. Off-job time below still uses nearest-assignment to avoid
+  // double-counting a single stop across co-located sites.
+  const siteByKey = useMemo(() => {
+    const m = new Map<string, { lat: number; lng: number }>();
+    geoSites.forEach(s => m.set(s.key, { lat: s.lat, lng: s.lng }));
+    return m;
+  }, [geoSites]);
+
+  const perSite = (key: string) => {
+    const site = siteByKey.get(key);
+    if (!site) return { visited: false, arrival: null as Date | null, secs: 0 };
+    const matched = stops.filter(st => haversineM(st.lat, st.lng, site.lat, site.lng) <= JOB_MATCH_RADIUS_M);
+    const visited = matched.length > 0;
+    const arrival = visited ? new Date(Math.min(...matched.map(st => st.startTime.getTime()))) : null;
+    const secs = matched.reduce((a, st) => {
+      const end = st.isOngoing ? now : st.endTime;
+      return a + Math.max(0, Math.floor((end.getTime() - st.startTime.getTime()) / 1000));
+    }, 0);
+    return { visited, arrival, secs };
+  };
+
+  const offJob = stopInfos.filter(si => si.siteKey == null);
+  const offJobLong = offJob
+    .filter(si => si.durSec / 60 >= OFFJOB_LONG_MIN)
+    .sort((a, b) => b.durSec - a.durSec);
+  const offJobSecs = offJob.reduce((a, m) => a + m.durSec, 0);
+  const onJobSecs = stopInfos.filter(si => si.siteKey != null).reduce((a, m) => a + m.durSec, 0);
+
+  const totalSites = geoSites.length;
+  const visitedSites = geoSites.filter(s => perSite(s.key).visited).length;
+  const currentlyOffJob = stopInfos.some(si => si.siteKey == null && si.st.isOngoing);
+
+  if (!staffId) return null;
+
+  return (
+    <div className="bg-white border border-black/10 rounded-none overflow-hidden">
+      <div className="px-5 py-3 border-b border-black/10 flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm font-bold text-[#0A0A0A] uppercase tracking-wider">Job Site Check · Payroll</p>
+        <span className="text-[10px] text-[#0A0A0A]/45 font-bold uppercase tracking-wider">Within {JOB_MATCH_RADIUS_M} m = on site</span>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 px-6 py-8 text-zinc-400">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+          <span className="text-sm">Loading jobs…</span>
+        </div>
+      )}
+
+      {!isLoading && jobs.length === 0 && (
+        <div className="px-4 py-10 text-center">
+          <MapPin className="w-7 h-7 text-zinc-300 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-zinc-400">No jobs scheduled for this date</p>
+          <p className="text-xs text-zinc-400 mt-1">Only jobs with a scheduled date appear here.</p>
+        </div>
+      )}
+
+      {!isLoading && jobs.length > 0 && (
+        <div className="p-4 space-y-4">
+          {currentlyOffJob && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-[#C1121F] text-white text-[12px] font-bold uppercase tracking-wider rounded-none">
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse inline-block" />
+              Currently away from all job sites
+            </div>
+          )}
+
+          {/* Payroll summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Sites Visited", value: `${visitedSites}/${totalSites}`, accent: totalSites > 0 && visitedSites < totalSites },
+              { label: "Time On Site", value: fmtDuration(onJobSecs), accent: false },
+              { label: "Time Off-Job", value: fmtDuration(offJobSecs), accent: offJobSecs > 0 },
+              { label: "Long Off-Job Stops", value: String(offJobLong.length), accent: offJobLong.length > 0 },
+            ].map(({ label, value, accent }) => (
+              <div key={label} className={`rounded-none p-4 ${accent ? "bg-[#C1121F] text-white" : "bg-white border border-black/10"}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${accent ? "text-white/75" : "text-[#0A0A0A]/50"}`}>{label}</p>
+                <p className={`text-xl font-extrabold tracking-tight ${accent ? "text-white" : "text-[#0A0A0A]"}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-job site visits */}
+          <div className="space-y-3">
+            {jobs.map(job => (
+              <div key={job.id} className="border border-black/10 rounded-none">
+                <div className="px-4 py-2.5 border-b border-black/10 flex items-center justify-between flex-wrap gap-1.5">
+                  <p className="text-[13px] font-extrabold text-[#0A0A0A]">
+                    {job.referenceNo}{job.customer ? ` · ${job.customer}` : ""}
+                  </p>
+                  <p className="text-[11px] text-[#0A0A0A]/55 font-semibold uppercase tracking-wider">
+                    {job.timeWindow || (job.scheduledAt ? format(new Date(job.scheduledAt), "HH:mm") : "—")} · {job.status}
+                  </p>
+                </div>
+                <div>
+                  {job.sites.map((site, i) => {
+                    const located = site.lat != null && site.lng != null;
+                    const info = located ? perSite(`${job.id}:${i}`) : null;
+                    return (
+                      <div key={i} className="flex items-start justify-between gap-3 px-4 py-2.5 border-b border-black/5 last:border-b-0">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-[#0A0A0A]/45 uppercase tracking-wider">{site.label}</p>
+                          <p className="text-sm text-[#0A0A0A] truncate">{site.address}</p>
+                        </div>
+                        {!located ? (
+                          <span className="shrink-0 px-2 py-1 text-[11px] font-bold uppercase tracking-wider rounded-none bg-[#EBE9E2] text-[#0A0A0A]/60 border border-black/10">
+                            Not located
+                          </span>
+                        ) : info?.visited ? (
+                          <span className="shrink-0 inline-flex flex-col items-end">
+                            <span className="px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider rounded-none bg-emerald-600 text-white inline-flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Visited
+                            </span>
+                            <span className="text-[11px] text-[#0A0A0A]/55 font-semibold mt-1">
+                              {info.arrival ? format(info.arrival, "HH:mm") : ""} · {fmtDuration(info.secs)} on site
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="shrink-0 px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider rounded-none bg-[#FBEBEB] text-[#C1121F] border border-[#C1121F]/30 inline-flex items-center gap-1">
+                            <X className="w-3 h-3" /> Not visited
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Long off-job stops — possible unpaid / dragging hours */}
+          {offJobLong.length > 0 && (
+            <div className="border border-[#C1121F]/30 rounded-none">
+              <div className="px-4 py-2.5 border-b border-[#C1121F]/20 bg-[#FBEBEB]/60 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#C1121F]" />
+                <p className="text-[12px] font-extrabold text-[#C1121F] uppercase tracking-wider">
+                  Long stops away from jobs ({offJobLong.length}) — over {OFFJOB_LONG_MIN} min
+                </p>
+              </div>
+              <div>
+                {offJobLong.map((si, idx) => (
+                  <OffJobStopRow
+                    key={idx}
+                    lat={si.st.lat}
+                    lng={si.st.lng}
+                    startTime={si.st.startTime}
+                    endTime={si.st.endTime}
+                    durSec={si.durSec}
+                    isOngoing={si.st.isOngoing}
+                    now={now}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GpsTrackingTab() {
  const { data: allStaff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
@@ -3029,6 +3274,9 @@ function GpsTrackingTab() {
  ))}
  </div>
  )}
+
+ {/* Job-site / payroll check — did staff actually go to their assigned jobs? */}
+ <JobSiteCheck staffId={staffId} date={selectedDate} stops={stops} now={now} />
 
  {/* Longest stays — answers "where did staff stay longer" at a glance */}
  {stops.length > 0 && <LongestStaysRail stops={stops} now={now} />}

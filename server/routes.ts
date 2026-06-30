@@ -51,6 +51,7 @@ import { renderInvoicePdf, renderAuditReportPdf, PdfBusyError } from "./invoice-
 // finalBalanceOutstanding) are the single source of truth in @shared/pricing so
 // every customer-facing surface and the reconciliation tests share one rule.
 import { db } from "./db";
+import { geocodeSgAddress } from "./geocode";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable, quoteStopSchema } from "@shared/schema";
 import { termsAcceptedForCurrentVersion, getBusinessPolicyClauses, getBusinessPolicyText, BusinessRuleFields, type BusinessRules } from "@shared/businessRules";
 import { loadBusinessRules, saveBusinessRules } from "./businessRules";
@@ -2814,8 +2815,10 @@ export async function registerRoutes(
     try {
       const userId = parseInt(req.params.userId);
       const date = req.query.date as string || new Date().toISOString().split("T")[0];
-      const dateFrom = new Date(date + "T00:00:00");
-      const dateTo   = new Date(date + "T23:59:59");
+      // The date picker means a Singapore (UTC+8) calendar day; pin the window
+      // to SGT so it lines up with the day-jobs schedule bucketing below.
+      const dateFrom = new Date(date + "T00:00:00+08:00");
+      const dateTo   = new Date(date + "T23:59:59.999+08:00");
       const points = await storage.getGpsTrackPoints(userId, dateFrom, dateTo);
       res.json(points);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
@@ -2844,6 +2847,81 @@ export async function registerRoutes(
       }));
       res.json(result);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Day jobs for a staff member: the addresses (geocoded to coordinates) of
+  // every job assigned to them on a given date. The admin GPS view matches the
+  // staff member's GPS track against these coordinates to check — per the Staff
+  // Handbook payroll rules — whether they actually went to their job sites or
+  // spent time away from any assigned job ("dragging hours" / personal detours).
+  app.get("/api/admin/staff/:userId/day-jobs", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) return res.status(400).json({ message: "Invalid staff id" });
+      const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
+
+      // A job belongs to "this day" if its scheduled date — in Singapore local
+      // time (fixed UTC+8) — equals the requested date. Jobs without a schedule
+      // are skipped (they have no working day to check against).
+      const sgtDate = (d: Date) => new Date(d.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+
+      const all = await storage.getQuotesAssignedTo(userId);
+      const dayJobs = all.filter(
+        (q) => q.scheduledAt && sgtDate(new Date(q.scheduledAt)) === date,
+      );
+
+      const jobs = await Promise.all(
+        dayJobs.map(async (q) => {
+          // Collect the physical site address(es) for this job. Multi-stop
+          // relocations use the ordered stops list; legacy relocations use
+          // pickup/drop-off; everything else uses the single service address.
+          const rawSites: { label: string; address: string }[] = [];
+          const stops = Array.isArray(q.stops) ? q.stops : [];
+          if (stops.length > 0) {
+            let p = 0;
+            let d = 0;
+            for (const s of stops) {
+              const label = s.kind === "pickup" ? `Pickup ${++p}` : `Drop-off ${++d}`;
+              if (s.address) rawSites.push({ label, address: s.address });
+            }
+          } else if (q.pickupAddress || q.dropoffAddress) {
+            if (q.pickupAddress) rawSites.push({ label: "Pickup", address: q.pickupAddress });
+            if (q.dropoffAddress) rawSites.push({ label: "Drop-off", address: q.dropoffAddress });
+          } else if (q.serviceAddress) {
+            rawSites.push({ label: "Job site", address: q.serviceAddress });
+          }
+
+          const sites = await Promise.all(
+            rawSites.map(async (s) => {
+              const geo = await geocodeSgAddress(s.address);
+              return {
+                label: s.label,
+                address: s.address,
+                lat: geo?.lat ?? null,
+                lng: geo?.lng ?? null,
+              };
+            }),
+          );
+
+          return {
+            id: q.id,
+            referenceNo: q.referenceNo,
+            customer: q.customer?.name ?? null,
+            status: q.status,
+            scheduledAt: q.scheduledAt,
+            timeWindow: q.timeWindow ?? null,
+            sites,
+          };
+        }),
+      );
+
+      res.json({ jobs });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // -- Amendment Routes --
