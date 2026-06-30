@@ -1211,3 +1211,110 @@ test("HTTP: verify-payment settles the balance and closes the case for a paid fi
     }
   }
 });
+
+test("HTTP: editing a quote with a BLANK transport / goodwill amount saves as 0 (no 500)", async (t) => {
+  const { storage } = await import("../server/storage.ts");
+  const refNo = `TEST-HTTP-EDIT-BLANK-${Date.now()}`;
+  let quoteId: number | undefined;
+  let app: { server: Server; base: string } | undefined;
+
+  // Regression guard: the admin edit form binds the Transport Fee input as
+  // `value={editQuoteData.transportFee || '0'}`, so an emptied box DISPLAYS "0"
+  // while React state actually holds an empty string "". Before the fix that ""
+  // passed the loose validator and reached the numeric DB column, which Postgres
+  // rejected ("invalid input syntax for type numeric") → HTTP 500 "Internal
+  // error". The edit route now coerces blank money fields to "0", so clearing a
+  // charge saves cleanly as zero instead of crashing.
+  try {
+    const created = await storage.createQuote(
+      { name: "HTTP Edit Blank Customer", email: `${refNo.toLowerCase()}@example.test`, phone: "+6580000021" },
+      {
+        referenceNo: refNo,
+        serviceAddress: "9 Route Rd, Singapore",
+        status: "approved",
+        subtotal: "300",
+        total: "350",
+        transportFee: "50",
+        goodwillDiscount: "0",
+        depositAmount: "175",
+        finalAmount: "175",
+        version: 1,
+        paymentStatus: "unpaid",
+      } as any,
+      [
+        {
+          originalDescription: "Sofa installation",
+          detectedName: "Sofa installation",
+          serviceType: "install",
+          quantity: 1,
+          unitPrice: "300.00",
+          subtotal: "300.00",
+        } as any,
+      ],
+    );
+    quoteId = created.id;
+
+    app = await startApp();
+
+    // Unauthenticated edit must be rejected before we test the happy path.
+    const unauth = await fetch(`${app.base}/api/quotes/${quoteId}/edit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quoteUpdates: { transportFee: "" } }),
+    });
+    assert.equal(unauth.status, 401, "editing without a session must be 401");
+
+    const login = await fetch(`${app.base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD }),
+    });
+    if (login.status !== 200) {
+      t.skip(`admin login unavailable (status ${login.status}); skipping authed edit assertions`);
+      return;
+    }
+    const cookie = login.headers.get("set-cookie");
+    assert.ok(cookie, "login should set a session cookie");
+
+    // The crux: save with a BLANK transport fee and a BLANK goodwill discount —
+    // exactly what the form sends when an admin clears those boxes. This used to
+    // 500; it must now succeed and persist both as "0".
+    const res = await fetch(`${app.base}/api/quotes/${quoteId}/edit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: cookie! },
+      body: JSON.stringify({ quoteUpdates: { transportFee: "", goodwillDiscount: "" } }),
+    });
+    assert.equal(res.status, 200, "saving a quote with a blank transport/goodwill amount must succeed (not 500)");
+
+    const after = await storage.getQuote(quoteId!);
+    assert.equal(Number(after?.transportFee ?? -1), 0, "a blank transport fee must persist as 0");
+    assert.equal(Number(after?.goodwillDiscount ?? -1), 0, "a blank goodwill discount must persist as 0");
+    // Total recompute must run: subtotal 300 + transport 0 − goodwill 0 = 300.
+    assert.equal(Number(after?.total ?? -1), 300, "clearing the transport fee must drop the total to the item subtotal");
+
+    // Genuine garbage must still be rejected (400), not silently coerced.
+    const bad = await fetch(`${app.base}/api/quotes/${quoteId}/edit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: cookie! },
+      body: JSON.stringify({ quoteUpdates: { transportFee: "abc" } }),
+    });
+    assert.equal(bad.status, 400, "a non-numeric transport fee must be rejected with 400, not coerced");
+  } catch (err: any) {
+    const infra = isInfraError(err);
+    if (infra) {
+      t.skip(`DB not migrated/reachable for HTTP edit-blank test: ${infra}`);
+      return;
+    }
+    throw err;
+  } finally {
+    if (app) await new Promise<void>((r) => app!.server.close(() => r()));
+    if (quoteId !== undefined) {
+      try {
+        const { storage } = await import("../server/storage.ts");
+        await storage.deleteQuote(quoteId);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+});

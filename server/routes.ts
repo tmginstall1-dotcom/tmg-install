@@ -5511,6 +5511,20 @@ ${systemPrompt}` });
         return res.status(400).json({ message: "Quote cannot be edited in its current status" });
       }
 
+      // Money/number string fields: a blank box ("" or whitespace) means zero.
+      // The admin edit form shows "0" in an emptied input but actually holds an
+      // empty string in state, so clearing the Transport/Delivery, Goodwill, or
+      // surcharge box used to send "" and crash the numeric DB column with a
+      // 500. Coerce blank → "0" so any value (including 0) saves cleanly.
+      const moneyField = z.preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? "0" : v),
+        z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+      );
+      const moneyFieldNullable = z.preprocess(
+        (v) => (typeof v === "string" && v.trim() === "" ? "0" : v),
+        z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").nullable().optional(),
+      );
+
       const { customerUpdates, quoteUpdates, items } = z.object({
         customerUpdates: z.object({
           name: z.string().optional(),
@@ -5524,11 +5538,11 @@ ${systemPrompt}` });
           serviceAddress: z.string().optional(),
           pickupAddress: z.string().optional(),
           dropoffAddress: z.string().optional(),
-          transportFee: z.string().optional(),
+          transportFee: moneyField,
           // Multi-stop relocation (additive)
           stops: z.array(quoteStopSchema).optional(),
           distanceKm: z.string().nullable().optional(),
-          volumetricFee: z.string().nullable().optional(),
+          volumetricFee: moneyFieldNullable,
           selectedServices: z.string().optional(),
           notes: z.string().optional(),
           staffTransportAllowance: z.boolean().optional(),
@@ -5549,7 +5563,7 @@ ${systemPrompt}` });
           poNumber: z.string().nullable().optional(),
           // Goodwill discount — admin-discretion per-job adjustment.
           // String to match the numeric column type used elsewhere.
-          goodwillDiscount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          goodwillDiscount: moneyField,
           goodwillReason: z.string().max(500).nullable().optional(),
           // ── Dispute-protection: scope / timing / surcharge fields ──────────
           timingMode: z.enum(['continuous', 'split']).optional(),
@@ -5559,10 +5573,10 @@ ${systemPrompt}` });
           reinstallTimeWindow: z.string().nullable().optional(),
           afterOfficeInvolved: z.boolean().optional(),
           afterOfficeSurchargeApplied: z.boolean().optional(),
-          afterOfficeSurchargeAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          afterOfficeSurchargeAmount: moneyField,
           afterOfficeWaived: z.boolean().optional(),
           afterOfficeWaiverReason: z.string().max(500).nullable().optional(),
-          additionalTripCharge: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").optional(),
+          additionalTripCharge: moneyField,
           specialRemarks: z.string().max(2000).nullable().optional(),
           ownMoverInvolved: z.boolean().optional(),
           depositRefundable: z.boolean().optional(),
