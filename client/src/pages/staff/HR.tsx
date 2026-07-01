@@ -332,8 +332,8 @@ function AttendanceTab() {
                         <p className="text-xs text-muted-foreground">"{a.reason}"</p>
                         {isRejected && a.adminNote && (
                           <div className="mt-2 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 p-2.5" data-testid={`amendment-rejection-reason-${a.id}`}>
-                            <p className="text-[10px] font-black text-red-700 dark:text-red-300 uppercase tracking-wider mb-0.5">Why this was declined</p>
-                            <p className="text-xs text-red-800 dark:text-red-200 font-medium">{a.adminNote}</p>
+                            <p className="text-[10px] font-black text-red-700 dark:text-red-300 uppercase tracking-wider mb-1">Why this was declined</p>
+                            <p className="text-xs text-red-800 dark:text-red-200 font-medium whitespace-pre-line leading-relaxed">{a.adminNote}</p>
                           </div>
                         )}
                         {!isRejected && a.adminNote && (

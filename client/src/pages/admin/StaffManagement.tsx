@@ -1945,15 +1945,50 @@ function TimesheetsView() {
 // ─── Amendments Tab ────────────────────────────────────────────────────────────
 
 
+// Preset impact reasons for declining a time amendment. `chip` is the short
+// label the admin taps; `full` is the plain-language sentence the STAFF sees so
+// they understand the business impact (self-inflicted OT, P&L cost, reputation).
+const REJECT_IMPACT_REASONS: { id: string; chip: string; full: string }[] = [
+ { id: "late-first-job", chip: "Late first-job arrival (self-inflicted OT)", full: "The overtime came from arriving late to the first job, not from extra work that was assigned. Our rule is that the team must reach the first job location by 9:00am — clocking in at the van at 9:00am is not on time because the drive to the job comes after." },
+ { id: "not-billable", chip: "Not billable — hits company P&L", full: "This overtime cannot be charged to the customer, so it becomes a direct cost to the company. Paying avoidable overtime reduces the profit on the job and hurts the company's bottom line (P&L)." },
+ { id: "reputation", chip: "Delayed customer / reputation", full: "The late start pushed the job later and affected the customer's schedule. Late jobs risk bad reviews and lost repeat business, which damages the company's reputation." },
+ { id: "not-approved", chip: "OT not pre-approved", full: "The overtime was not approved in advance. Extra hours need to be agreed with the office before the work, so they cannot be added after the fact." },
+ { id: "mismatch", chip: "Doesn't match GPS / records", full: "The requested times do not match the GPS track and attendance records for that day." },
+];
+
 function AmendmentsTab() {
  const qc = useQueryClient();
  const { toast } = useToast();
  const { data: amendments = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/attendance/amendments"], refetchInterval: 30_000 });
  const [notes, setNotes] = useState<Record<number, string>>({});
+ const [reasons, setReasons] = useState<Record<number, string[]>>({});
+
+ const toggleReason = (id: number, rid: string) => setReasons(prev => {
+ const cur = prev[id] || [];
+ return { ...prev, [id]: cur.includes(rid) ? cur.filter(x => x !== rid) : [...cur, rid] };
+ });
+
+ // Build the full, staff-facing explanation from the checked impact reasons,
+ // the GPS late-arrival evidence, and the admin's free-text note.
+ const composeRejectReason = (a: any): string => {
+ const picked = reasons[a.id] || [];
+ const lines: string[] = [];
+ for (const r of REJECT_IMPACT_REASONS) if (picked.includes(r.id)) lines.push("• " + r.full);
+ const fa = a.firstJobArrival;
+ if (fa?.lateFirstJob) {
+ const at = new Date(fa.firstJobArrivalAt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Singapore' });
+ const late = fa.minutesLate;
+ const lateStr = late >= 60 ? `${Math.floor(late / 60)}h ${late % 60}m` : `${late}m`;
+ lines.push(`• GPS record: you reached the first job at ${at} — ${lateStr} after the ${fa.deadline} rule.`);
+ }
+ const note = (notes[a.id] || "").trim();
+ if (note) lines.push(note);
+ return lines.join("\n");
+ };
 
  const reviewMut = useMutation({
- mutationFn: ({ id, status }: { id: number; status: "approved" | "rejected" }) =>
- apiRequest("PATCH", `/api/admin/attendance/amendments/${id}`, { status, adminNote: notes[id] || "" }),
+ mutationFn: ({ id, status, adminNote }: { id: number; status: "approved" | "rejected"; adminNote?: string }) =>
+ apiRequest("PATCH", `/api/admin/attendance/amendments/${id}`, { status, adminNote: adminNote ?? (notes[id] || "") }),
  onSuccess: () => {
  qc.invalidateQueries({ queryKey: ["/api/admin/attendance/amendments"] });
  toast({ title: "Amendment reviewed" });
@@ -2048,25 +2083,50 @@ function AmendmentsTab() {
  );
  })()}
 
- {a.status === 'pending' && (
+ {a.status === 'pending' && (() => {
+ const composed = composeRejectReason(a);
+ return (
  <div className="space-y-3 pt-2">
+ {/* Impact reasons — tap to build the explanation the staff member sees */}
+ <div>
+ <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-1.5">Reason for declining (staff will see this)</p>
+ <div className="flex flex-wrap gap-1.5">
+ {REJECT_IMPACT_REASONS.map(r => {
+ const on = (reasons[a.id] || []).includes(r.id);
+ return (
+ <button key={r.id} type="button" onClick={() => toggleReason(a.id, r.id)}
+ className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${on ? "bg-[#0A0A0A] text-white border-[#0A0A0A]" : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"}`}
+ data-testid={`chip-reason-${r.id}-${a.id}`}>
+ {r.chip}
+ </button>
+ );
+ })}
+ </div>
+ </div>
  <textarea value={notes[a.id] || ""} onChange={e => setNotes(n => ({ ...n, [a.id]: e.target.value }))}
- placeholder="Note to staff — required to reject (they will see this reason)" rows={2}
+ placeholder="Add any extra note to the staff member (optional)" rows={2}
  className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] resize-none transition-colors"
  data-testid={`textarea-admin-note-${a.id}`} />
+ {composed.trim() && (
+ <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
+ <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-1">Preview — what staff will see</p>
+ <p className="text-xs text-zinc-700 whitespace-pre-line">{composed}</p>
+ </div>
+ )}
  <div className="flex gap-3">
- <button onClick={() => reviewMut.mutate({ id: a.id, status: "approved" })}
+ <button onClick={() => reviewMut.mutate({ id: a.id, status: "approved", adminNote: notes[a.id] || "" })}
  disabled={reviewMut.isPending}
  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
  data-testid={`button-approve-amendment-${a.id}`}>
  <Check className="w-3.5 h-3.5" /> Approve
  </button>
  <button onClick={() => {
-   if (!(notes[a.id] || "").trim()) {
-     toast({ title: "Reason required", description: "Enter a reason so the staff member knows why it was declined.", variant: "destructive" });
+   const reason = composeRejectReason(a);
+   if (!reason.trim()) {
+     toast({ title: "Reason required", description: "Pick at least one reason (or write a note) so the staff member knows why it was declined.", variant: "destructive" });
      return;
    }
-   reviewMut.mutate({ id: a.id, status: "rejected" });
+   reviewMut.mutate({ id: a.id, status: "rejected", adminNote: reason });
  }}
  disabled={reviewMut.isPending}
  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
@@ -2075,9 +2135,13 @@ function AmendmentsTab() {
  </button>
  </div>
  </div>
- )}
- {a.adminNote && (
- <p className="text-xs text-zinc-500 italic mt-2">Admin note: {a.adminNote}</p>
+ );
+ })()}
+ {a.status !== 'pending' && a.adminNote && (
+ <div className="mt-2 rounded-lg bg-zinc-50 border border-zinc-200 p-3">
+ <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-1">Reason sent to staff</p>
+ <p className="text-xs text-zinc-600 whitespace-pre-line leading-relaxed">{a.adminNote}</p>
+ </div>
  )}
  </div>
  </div>
