@@ -76,30 +76,49 @@ function buildQueryCandidates(address: string): string[] {
   return cands;
 }
 
+// One full geocode attempt: try the postal code first (exact building), then the
+// ordered free-text candidates. Throws TransientGeocodeError if OneMap signals a
+// rate-limit / server / network blip so the caller can retry rather than cache null.
+async function attemptGeocode(address: string): Promise<GeoPoint | null> {
+  const postal = extractPostal(address);
+  if (postal) {
+    const r = await onemapQuery(postal);
+    if (r) return r;
+  }
+  for (const cand of buildQueryCandidates(address)) {
+    const r = await onemapQuery(cand);
+    if (r) return r;
+  }
+  return null;
+}
+
 /** Geocode a Singapore address to coordinates, or null if it can't be located. */
 export async function geocodeSgAddress(address: string): Promise<GeoPoint | null> {
   const key = (address || "").trim().toLowerCase();
   if (!key) return null;
   if (cache.has(key)) return cache.get(key) ?? null;
 
+  // The admin GPS view geocodes every job site in parallel on each load, which
+  // can briefly trip OneMap's rate limit. Retry a transient failure a couple of
+  // times with jittered backoff so a cold-cache burst doesn't leave a real job
+  // site showing "not located". A genuine "no such address" returns null (does
+  // NOT throw) and is cached immediately; only transient failures are retried
+  // and never cached, so they self-heal on the next request either way.
+  const MAX_ATTEMPTS = 3;
   let result: GeoPoint | null = null;
   let transient = false;
-  try {
-    const postal = extractPostal(address);
-    if (postal) result = await onemapQuery(postal);
-    if (!result) {
-      for (const cand of buildQueryCandidates(address)) {
-        result = await onemapQuery(cand);
-        if (result) break;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      result = await attemptGeocode(address);
+      transient = false;
+      break;
+    } catch {
+      transient = true;
+      result = null;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 400 * attempt + Math.random() * 300));
       }
     }
-  } catch {
-    // Any thrown error — OneMap 429/5xx, a fetch/network failure, or a bad JSON
-    // body — is transient. A genuine "no such address" outcome does NOT throw
-    // (onemapQuery returns null), so only definitive results are cached below;
-    // transient failures retry on the next call instead of sticking as "not located".
-    transient = true;
-    result = null;
   }
   if (!transient) cache.set(key, result);
   return result;

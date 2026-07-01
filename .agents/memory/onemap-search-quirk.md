@@ -21,10 +21,18 @@ unauthenticated queries; the `error` string is a warning, not a failure.
   "Block 261 Serangoon". This silently broke staff GPS "on-site" matching for
   GGV/AI-imported jobs (whose addresses use the BLK prefix and often lack a
   postal code): geocode returned null → job showed "NOT LOCATED".
-- Server-side `geocodeSgAddress` (server/geocode.ts) now tries ordered candidates
-  (raw → BLK-stripped → first comma segment → segment BLK-stripped) and no longer
-  caches null on transient 429/5xx (those throw TransientGeocodeError), so a blip
-  can't permanently mark a real site "not located". Client `/api/onemap/search`
+- Server-side `geocodeSgAddress` (server/geocode.ts) tries a postal-code lookup
+  first, then ordered free-text candidates (raw → leading-BLK-stripped → first
+  comma segment → that stripped). Most GGV addresses carry a 6-digit postal so
+  postal usually wins; the BLK candidates are the fallback.
+- **Cache-poisoning was the real prod bug (not the BLK prefix):** the admin GPS
+  "was staff on site" view geocodes EVERY job site in parallel on each load, so a
+  burst trips OneMap's 429 rate-limit; the old code cached null on any failure,
+  poisoning that address as "NOT LOCATED" for the whole server process. Fix:
+  429/5xx/network throw TransientGeocodeError, transient failures are NEVER cached
+  (only definitive found/not-found is), and the lookup retries up to 3x with
+  jittered backoff. **Why:** long-running prod process + parallel burst = one blip
+  = permanent false "not located" until redeploy. Client `/api/onemap/search`
   autocomplete still needs users to type road/postal code + a graceful empty state.
 - If OneMap eventually hard-requires a token, the fix is a token step
   (POST email+password to its getToken endpoint, cache ~3 days) — would need
