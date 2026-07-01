@@ -29,6 +29,25 @@ reuses ALL existing job machinery — dashboard buckets, admin Assign, staff app
   quote. **Why:** the FK has ON DELETE no action, so deleting the quote while the
   GGV row still points at it throws (FK violation → 500).
 
+## Displaying GGV code + price (revenue-safe)
+- Staff/admin see the GGV **code as the job name** and the **GGV price** even
+  though `quote.total` stays $0. Done via a DISPLAY-ONLY `ggv` object on
+  `QuoteResponse` (jobNo, bookingRef, actualPrice, listedPrice, deduction,
+  serviceType), attached in BOTH `fetchQuoteDetails` (single) and
+  `fetchQuoteDetailsBatch` (list) by reading the linked `ggv_jobs` row for
+  `sourceChannel==='gogovan'`. **Why:** never put the price on the quote total /
+  items or revenue double-counts.
+- Name surfaces use `quote.ggv?.jobNo || quote.customer?.name` (admin dashboard
+  row + QuoteDetail header, staff dashboard card + JobDetail header).
+- Price surfaces: a "GoGoVan Job Value" block on admin QuoteDetail + staff
+  JobDetail, AND the admin dashboard **amount column** must use
+  `quote.ggv ? quote.ggv.actualPrice : quote.total` (easy to miss — it otherwise
+  shows $0). "Total Due" on QuoteDetail stays $0 by design (nothing to collect;
+  GoGoVan pays).
+- `stripQuotePricingForStaff` nulls known money fields but does NOT touch `ggv`,
+  so staff intentionally still see the GGV price. Keep `ggv` out of its
+  MONEY_FIELDS list.
+
 ## Deliberate non-changes
 - Mirror-link creation is **best-effort** (errors logged, not fatal). **Why:** a
   GGV financial row must never fail to save over a mirror hiccup; PATCH backfills

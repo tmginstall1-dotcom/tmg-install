@@ -723,7 +723,7 @@ export default function JobDetail() {
                 </div>
                 <span className="text-white/60 text-xs font-mono font-bold">{job.referenceNo}</span>
               </div>
-              <h1 className="text-xl font-black text-white leading-tight">{job.customer?.name}</h1>
+              <h1 className="text-xl font-black text-white leading-tight">{job.ggv?.jobNo || job.customer?.name}</h1>
               {job.scheduledAt && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <CalendarDays className="w-3.5 h-3.5 text-white/50" />
@@ -838,12 +838,28 @@ export default function JobDetail() {
                 </div>
               </div>
             )}
-            {job.customer?.phone && (
+            {job.customer?.phone && !job.ggv && (
               <div className="flex items-center gap-2.5">
                 <User className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div>
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">Customer</p>
                   <p className="text-sm font-semibold">{job.customer.name} · {job.customer.phone}</p>
+                </div>
+              </div>
+            )}
+            {job.ggv && (
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wide mb-0.5">GoGoVan Job</p>
+                  <p className="text-sm font-semibold">
+                    {job.ggv.jobNo || "—"}
+                    {job.ggv.serviceType ? ` · ${job.ggv.serviceType}` : ""}
+                  </p>
+                  <p className="text-base font-black text-emerald-700 mt-0.5">
+                    ${Number(job.ggv.actualPrice || 0).toFixed(2)}
+                    <span className="text-[11px] font-semibold text-muted-foreground ml-1.5">paid via GoGoVan</span>
+                  </p>
                 </div>
               </div>
             )}

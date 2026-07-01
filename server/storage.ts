@@ -867,6 +867,25 @@ export class DatabaseStorage implements IStorage {
     const updatesList = await db.select().from(jobUpdates).where(eq(jobUpdates.quoteId, quoteId)).orderBy(desc(jobUpdates.createdAt));
     const paymentsList = await db.select().from(quotePayments).where(eq(quotePayments.quoteId, quoteId)).orderBy(desc(quotePayments.paidAt));
 
+    // GoGoVan-mirrored jobs: attach the linked GGV row's code + prices for
+    // DISPLAY. The quote's own total stays $0 (revenue lives on ggv_jobs).
+    let ggv: QuoteResponse["ggv"] | undefined;
+    if (quote.sourceChannel === "gogovan") {
+      const [g] = await db
+        .select({
+          jobNo: ggvJobs.jobNo,
+          bookingRef: ggvJobs.bookingRef,
+          actualPrice: ggvJobs.actualPrice,
+          listedPrice: ggvJobs.listedPrice,
+          deduction: ggvJobs.deduction,
+          serviceType: ggvJobs.serviceType,
+        })
+        .from(ggvJobs)
+        .where(eq(ggvJobs.quoteId, quoteId))
+        .limit(1);
+      if (g) ggv = g;
+    }
+
     return {
       ...quote,
       customer,
@@ -875,6 +894,7 @@ export class DatabaseStorage implements IStorage {
       items: itemsWithCatalog,
       updates: updatesList,
       payments: paymentsList,
+      ggv,
     };
   }
 
@@ -905,10 +925,23 @@ export class DatabaseStorage implements IStorage {
 
     // Round 2 — catalog items + team members (depend on Round 1 results)
     const catalogIds   = [...new Set(allItems.flatMap(i => i.catalogItemId ? [i.catalogItemId] : []))];
-    const [allCatalog, allTeamMembers] = await Promise.all([
+    // GoGoVan-mirrored jobs: batch-load the linked GGV rows so lists show the
+    // job code + price. Only the gogovan-sourced quotes need this.
+    const ggvQuoteIds  = quotesList.filter(q => q.sourceChannel === "gogovan").map(q => q.id);
+    const [allCatalog, allTeamMembers, allGGV] = await Promise.all([
       catalogIds.length ? db.select().from(catalogItems).where(inArray(catalogItems.id, catalogIds)) : Promise.resolve([]),
       teamIds.length    ? db.select().from(users).where(inArray(users.teamId, teamIds))               : Promise.resolve([]),
+      ggvQuoteIds.length ? db.select({
+        quoteId: ggvJobs.quoteId, jobNo: ggvJobs.jobNo, bookingRef: ggvJobs.bookingRef,
+        actualPrice: ggvJobs.actualPrice, listedPrice: ggvJobs.listedPrice,
+        deduction: ggvJobs.deduction, serviceType: ggvJobs.serviceType,
+      }).from(ggvJobs).where(inArray(ggvJobs.quoteId, ggvQuoteIds)) : Promise.resolve([]),
     ]);
+    const ggvByQuote = new Map<number, QuoteResponse["ggv"]>();
+    for (const g of allGGV) if (g.quoteId != null) ggvByQuote.set(g.quoteId, {
+      jobNo: g.jobNo, bookingRef: g.bookingRef, actualPrice: g.actualPrice,
+      listedPrice: g.listedPrice, deduction: g.deduction, serviceType: g.serviceType,
+    });
 
     // Build lookup maps
     const customerMap  = new Map(allCustomers.map(c => [c.id, c]));
@@ -946,6 +979,7 @@ export class DatabaseStorage implements IStorage {
           catalogItem: item.catalogItemId ? catalogMap.get(item.catalogItemId) : undefined,
         })),
         updates: updatesByQuote.get(quote.id) ?? [],
+        ggv: quote.sourceChannel === "gogovan" ? ggvByQuote.get(quote.id) : undefined,
       } as QuoteResponse;
     });
   }
@@ -2117,7 +2151,11 @@ export class DatabaseStorage implements IStorage {
     }).returning();
     await db.insert(quoteItems).values({
       quoteId: q.id,
-      originalDescription: `GoGoVan ${ggv.serviceType || "delivery / installation"}`.trim(),
+      // Include the GGV job code in the line so it is identifiable on the job
+      // sheet. unitPrice/subtotal stay $0 — the real GGV price is shown via the
+      // quote's `ggv` display block, and keeping items at $0 means editQuote's
+      // total recompute can never accidentally double-count GGV money.
+      originalDescription: [`GoGoVan ${ggv.serviceType || "delivery / installation"}`.trim(), ggv.jobNo].filter(Boolean).join(" · "),
       serviceType: "fee",
       quantity: 1,
       unitPrice: "0",

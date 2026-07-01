@@ -2337,7 +2337,7 @@ export default function AdminQuoteDetail() {
  <Loader2 className="w-3 h-3 text-zinc-400 animate-spin" />
  )}
  </div>
- <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{quote.customer?.name}</h1>
+ <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{quote.ggv?.jobNo || quote.customer?.name}</h1>
  </div>
  </div>
 
@@ -2885,6 +2885,29 @@ export default function AdminQuoteDetail() {
  </div>
  </button>
  </div>
+ </div>
+ </div>
+ )}
+
+ {/* GoGoVan job value — DISPLAY ONLY. Shown so staff/admin see what the job is
+     worth; kept out of the quote total so GGV money (tracked on ggv_jobs) is
+     never double-counted in revenue. */}
+ {quote.ggv && (
+ <div className="bg-emerald-50 border border-emerald-200 rounded-none px-5 py-4">
+ <div className="flex items-center justify-between gap-3">
+ <div className="min-w-0">
+ <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700 flex items-center gap-1.5">
+ <Truck className="w-3.5 h-3.5" /> GoGoVan Job Value
+ </p>
+ <p className="text-[11px] text-emerald-700/70 mt-0.5">Paid via GoGoVan — shown for reference, not added to this job's total.</p>
+ </div>
+ <span className="text-lg font-bold text-emerald-800 tabular-nums shrink-0">{formatMoney(quote.ggv.actualPrice)}</span>
+ </div>
+ <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-emerald-800/80">
+ {quote.ggv.jobNo && <span>Code: <span className="font-mono font-semibold">{quote.ggv.jobNo}</span></span>}
+ {quote.ggv.serviceType && <span>Service: <span className="font-semibold">{quote.ggv.serviceType}</span></span>}
+ {Number(quote.ggv.listedPrice || 0) > 0 && <span>Listed: {formatMoney(quote.ggv.listedPrice)}</span>}
+ {Number(quote.ggv.deduction || 0) > 0 && <span>Deduction: −{formatMoney(quote.ggv.deduction)}</span>}
  </div>
  </div>
  )}

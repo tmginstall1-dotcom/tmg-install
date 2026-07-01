@@ -84,12 +84,12 @@ function QuoteRow({ quote }: { quote: any }) {
       className="group flex items-center gap-4 px-4 sm:px-5 py-3.5 hover:bg-[#EBE9E2] cursor-pointer transition-colors"
     >
       <div className="w-9 h-9 flex items-center justify-center text-[11px] font-black shrink-0 bg-[#0A0A0A] text-white tracking-wider">
-        {initials(quote.customer?.name)}
+        {initials(quote.ggv?.jobNo || quote.customer?.name)}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-[13px] font-black uppercase tracking-[0.06em] text-[#0A0A0A] truncate leading-tight">
-            {quote.customer?.name || "Unknown"}
+            {quote.ggv?.jobNo || quote.customer?.name || "Unknown"}
           </p>
           <StatusBadge status={quote.status} />
           <ChannelBadge channel={quote.sourceChannel} />
@@ -101,7 +101,7 @@ function QuoteRow({ quote }: { quote: any }) {
       </div>
       <div className="shrink-0 text-right flex items-center gap-4">
         <div>
-          <p className="text-[14px] font-black text-[#0A0A0A] tabular-nums leading-tight">{formatMoney(quote.total)}</p>
+          <p className="text-[14px] font-black text-[#0A0A0A] tabular-nums leading-tight">{formatMoney(quote.ggv ? quote.ggv.actualPrice : quote.total)}</p>
           <p className="text-[10px] text-black/55 font-bold uppercase tracking-[0.16em] mt-1 tabular-nums">{dateLabel(quote)}</p>
         </div>
         <ChevronRight className="w-4 h-4 text-black/25 group-hover:text-[#0A0A0A] group-hover:translate-x-0.5 transition-all shrink-0" />

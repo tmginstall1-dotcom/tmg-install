@@ -655,7 +655,7 @@ function JobCard({ job, variant, myUserId }: {
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                <h3 className="font-black text-[15px] leading-tight text-slate-900 truncate">{job.customer?.name}</h3>
+                <h3 className="font-black text-[15px] leading-tight text-slate-900 truncate">{job.ggv?.jobNo || job.customer?.name}</h3>
                 {isMyJob && (
                   <span className="shrink-0 text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full">
                     YOU

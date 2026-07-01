@@ -919,6 +919,18 @@ export type QuoteResponse = Quote & {
   assignedStaff?: User;
   assignedTeam?: Team & { members?: User[] };
   payments?: QuotePayment[];
+  // For GoGoVan-mirrored jobs only: the linked ggv_jobs row's identity + money,
+  // surfaced for DISPLAY (so staff/admin see the job code + price). The quote's
+  // own total stays $0 — GGV money lives on ggv_jobs so it is never counted twice
+  // in revenue.
+  ggv?: {
+    jobNo: string | null;
+    bookingRef: string | null;
+    actualPrice: string | null;
+    listedPrice: string | null;
+    deduction: string | null;
+    serviceType: string | null;
+  };
 };
 
 // ─── AI OPERATIONS LAYER ────────────────────────────────────────────────────
