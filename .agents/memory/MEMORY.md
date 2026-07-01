@@ -1,4 +1,5 @@
 - [Dev backend reload](dev-backend-reload.md) — `npm run dev` runs `tsx` without watch; restart the "Start application" workflow after schema/storage edits or Drizzle throws "No values to set".
+- [APK build ↔ GitHub sync](apk-github-build-sync.md) — staff-app UI is baked into the APK; new APKs build from GitHub main (separate from Replit deploy). Stale/expired GitHub push = staff apps silently miss UI changes.
 - [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.
 - [Balance computation spots](balance-computation-spots.md) — outstanding balance recomputed inline in ~7 routes + email; change together, subtract getLedgerPaidTotal not the deposit baseline.
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
