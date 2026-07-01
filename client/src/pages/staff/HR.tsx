@@ -304,10 +304,23 @@ function AttendanceTab() {
                     </div>
 
                     {/* Existing amendments */}
-                    {amendments.filter((a: any) => a.attendanceLogId === log.id).map((a: any) => (
-                      <div key={a.id} className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
+                    {amendments.filter((a: any) => a.attendanceLogId === log.id).map((a: any) => {
+                      const isRejected = a.status === 'rejected';
+                      const isApproved = a.status === 'approved';
+                      const box = isRejected
+                        ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-700"
+                        : isApproved
+                          ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-700"
+                          : "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-700";
+                      const heading = isRejected
+                        ? "text-red-700 dark:text-red-300"
+                        : isApproved
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-amber-700 dark:text-amber-300";
+                      return (
+                      <div key={a.id} className={`border rounded-xl p-3 ${box}`} data-testid={`amendment-${a.id}`}>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-wider">Amendment Request</p>
+                          <p className={`text-xs font-black uppercase tracking-wider ${heading}`}>Amendment Request</p>
                           <LeaveStatusBadge status={a.status} />
                         </div>
                         <div className="flex items-center gap-2 text-xs text-foreground mb-1">
@@ -317,13 +330,20 @@ function AttendanceTab() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">"{a.reason}"</p>
-                        {a.adminNote && (
+                        {isRejected && a.adminNote && (
+                          <div className="mt-2 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 p-2.5" data-testid={`amendment-rejection-reason-${a.id}`}>
+                            <p className="text-[10px] font-black text-red-700 dark:text-red-300 uppercase tracking-wider mb-0.5">Why this was declined</p>
+                            <p className="text-xs text-red-800 dark:text-red-200 font-medium">{a.adminNote}</p>
+                          </div>
+                        )}
+                        {!isRejected && a.adminNote && (
                           <p className="text-xs text-muted-foreground mt-1 italic border-t border-amber-200 dark:border-amber-700 pt-1">
                             Admin: {a.adminNote}
                           </p>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Amendment form */}
                     {!pendingAmend && <AmendmentForm log={log} />}

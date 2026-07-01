@@ -43,7 +43,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
-import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, mealAllowanceForDay, type PricingItem, type PricingFloor } from "@shared/pricing";
+import { calcTransportFee, calcOvertimeCharge, getJobSchedule, calcSecondDayContinuation, PricingConfig, bulkWeightedQty, computePricing, computeDRPrice, requiresFullUpfront, relocationBundleBlocksPromo, FULL_PAYMENT_THRESHOLD, splitDepositFinal, depositPaidFallback, finalBalanceOutstanding, mealAllowanceForDay, firstJobMinutesLate, FIRST_JOB_ARRIVAL_GRACE_MIN, FIRST_JOB_ARRIVAL_DEADLINE_SGT, type PricingItem, type PricingFloor } from "@shared/pricing";
 import { getPackage } from "@shared/packages";
 import { renderInvoicePdf, renderAuditReportPdf, PdfBusyError } from "./invoice-pdf";
 
@@ -2950,6 +2950,71 @@ export async function registerRoutes(
   });
 
   // -- Amendment Routes --
+
+  // Compute the "late first-job arrival" flag for one amendment. Staff must be
+  // physically AT the first job by 09:00 SGT (see FIRST_JOB_ARRIVAL_DEADLINE_SGT);
+  // reporting at the van at 09:00 isn't enough because driving comes after. We
+  // derive the first-job arrival from the staff member's own GPS track: the first
+  // real stop (dwell) that is clearly away from the van (clock-in) location.
+  // Advisory only — never blocks pay; returns null when it can't be determined.
+  async function firstJobFlagForAmendment(a: any): Promise<{
+    firstJobArrivalAt: string; minutesLate: number; lateFirstJob: boolean; deadline: string;
+  } | null> {
+    try {
+      const log = await storage.getAttendanceLog(a.attendanceLogId);
+      if (!log?.clockInAt) return null;
+      const from = new Date(log.clockInAt as any);
+      const to = log.clockOutAt
+        ? new Date(log.clockOutAt as any)
+        : new Date(from.getTime() + 14 * 3600 * 1000);
+      const vanLat = log.clockInLat != null ? parseFloat(log.clockInLat as any) : null;
+      const vanLng = log.clockInLng != null ? parseFloat(log.clockInLng as any) : null;
+
+      const points = await storage.getGpsTrackPoints(a.userId, from, to);
+      const norm = points
+        .map((p: any) => ({
+          lat: typeof p.lat === "string" ? parseFloat(p.lat) : p.lat,
+          lng: typeof p.lng === "string" ? parseFloat(p.lng) : p.lng,
+          recordedAt: new Date(p.recordedAt as any),
+        }))
+        .filter((p: any) => isFinite(p.lat) && isFinite(p.lng));
+      if (norm.length < 2) return null;
+
+      // Real dwell = a job stop (≥8 min within ~120 m), not a traffic pause.
+      const stops = computeGpsStops(norm, { radiusMeters: 120, minDurationMin: 8 });
+      if (stops.length === 0) return null;
+
+      const haversineKmLocal = (la1: number, ln1: number, la2: number, ln2: number) => {
+        const R = 6371, toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(la2 - la1), dLng = toRad(ln2 - ln1);
+        const x = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+      };
+
+      let firstJob: (typeof stops)[number] | null = null;
+      for (const s of stops) {
+        if (vanLat != null && vanLng != null && isFinite(vanLat) && isFinite(vanLng)) {
+          if (haversineKmLocal(vanLat, vanLng, s.lat, s.lng) > 0.25) { firstJob = s; break; }
+        } else {
+          firstJob = s; break; // no van reference — use the first real stop
+        }
+      }
+      if (!firstJob) return null;
+
+      const minutesLate = firstJobMinutesLate(firstJob.startAt, log.clockInAt as any);
+      return {
+        firstJobArrivalAt: firstJob.startAt.toISOString(),
+        minutesLate,
+        lateFirstJob: minutesLate > FIRST_JOB_ARRIVAL_GRACE_MIN,
+        deadline: FIRST_JOB_ARRIVAL_DEADLINE_SGT,
+      };
+    } catch (err: any) {
+      console.warn("[first-job-flag] failed for amendment", a?.id, err?.message || err);
+      return null;
+    }
+  }
+
   app.post("/api/attendance/amendment", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     try {
@@ -2988,7 +3053,15 @@ export async function registerRoutes(
     const caller = await storage.getUserById(req.session.userId);
     if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     const amendments = await storage.getPendingAmendments();
-    res.json(amendments);
+    // Enrich only the actionable (pending) amendments with the late-first-job
+    // flag so admin sees, right on the request, whether the overtime looks like
+    // a genuine late start. Reviewed ones already carry the decision note.
+    const enriched = await Promise.all(amendments.map(async (a: any) => {
+      if (a.status !== "pending") return a;
+      const firstJobArrival = await firstJobFlagForAmendment(a);
+      return { ...a, firstJobArrival };
+    }));
+    res.json(enriched);
   });
 
   app.patch("/api/admin/attendance/amendments/:id", async (req, res) => {
@@ -3001,7 +3074,12 @@ export async function registerRoutes(
         status: z.enum(["approved", "rejected"]),
         adminNote: z.string().default(""),
       }).parse(req.body);
-      const updated = await storage.reviewAmendment(id, status, adminNote, req.session.userId);
+      // A rejection must always tell the staff member WHY, so the reason shows
+      // on their time-amendment screen instead of a silent "rejected".
+      if (status === "rejected" && !adminNote.trim()) {
+        return res.status(400).json({ message: "A reason is required when rejecting — the staff member will see it." });
+      }
+      const updated = await storage.reviewAmendment(id, status, adminNote.trim(), req.session.userId);
       res.json(updated);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });

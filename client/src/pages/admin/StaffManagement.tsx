@@ -2022,12 +2022,38 @@ function AmendmentsTab() {
  <p className="text-xs font-semibold text-zinc-700 mb-1">Staff Reason</p>
  <p className="text-sm text-zinc-600">{a.reason}</p>
  </div>
- 
+
+ {a.firstJobArrival && (() => {
+ const fa = a.firstJobArrival;
+ const at = new Date(fa.firstJobArrivalAt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Singapore' });
+ const late = fa.minutesLate;
+ const lateStr = late >= 60 ? `${Math.floor(late / 60)}h ${late % 60}m` : `${late}m`;
+ return fa.lateFirstJob ? (
+ <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3" data-testid={`flag-late-firstjob-${a.id}`}>
+ <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+ <div>
+ <p className="text-xs font-bold text-red-700 uppercase tracking-wider">Late first-job arrival</p>
+ <p className="text-xs text-red-700 mt-0.5">
+ GPS shows they reached the first job at <span className="font-bold font-mono">{at}</span> — <span className="font-bold">{lateStr}</span> after the {fa.deadline} rule. This overtime may be a late start, not extra work.
+ </p>
+ </div>
+ </div>
+ ) : (
+ <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-3" data-testid={`flag-ontime-firstjob-${a.id}`}>
+ <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+ <p className="text-xs text-emerald-700">
+ On time — first job reached at <span className="font-bold font-mono">{at}</span> (within the {fa.deadline} rule).
+ </p>
+ </div>
+ );
+ })()}
+
  {a.status === 'pending' && (
  <div className="space-y-3 pt-2">
  <textarea value={notes[a.id] || ""} onChange={e => setNotes(n => ({ ...n, [a.id]: e.target.value }))}
- placeholder="Admin note (optional)" rows={2}
- className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] resize-none transition-colors" />
+ placeholder="Note to staff — required to reject (they will see this reason)" rows={2}
+ className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] resize-none transition-colors"
+ data-testid={`textarea-admin-note-${a.id}`} />
  <div className="flex gap-3">
  <button onClick={() => reviewMut.mutate({ id: a.id, status: "approved" })}
  disabled={reviewMut.isPending}
@@ -2035,7 +2061,13 @@ function AmendmentsTab() {
  data-testid={`button-approve-amendment-${a.id}`}>
  <Check className="w-3.5 h-3.5" /> Approve
  </button>
- <button onClick={() => reviewMut.mutate({ id: a.id, status: "rejected" })}
+ <button onClick={() => {
+   if (!(notes[a.id] || "").trim()) {
+     toast({ title: "Reason required", description: "Enter a reason so the staff member knows why it was declined.", variant: "destructive" });
+     return;
+   }
+   reviewMut.mutate({ id: a.id, status: "rejected" });
+ }}
  disabled={reviewMut.isPending}
  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
  data-testid={`button-reject-amendment-${a.id}`}>

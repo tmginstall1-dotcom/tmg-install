@@ -1445,6 +1445,49 @@ export function mealAllowanceForDay(dayStart: Date | string, dailyOtHours: numbe
   return qualifies ? MEAL_ALLOWANCE_AMOUNT : 0;
 }
 
+// --------------------------------------------------------------------------
+// First-job arrival rule — staff must reach the FIRST job location by 09:00 SGT
+// --------------------------------------------------------------------------
+/**
+ * The time (Singapore, UTC+8) staff are expected to be physically AT the first
+ * job location — not just reporting at the van. Reporting at the van at 09:00
+ * still means arriving late, because driving time comes after.
+ */
+export const FIRST_JOB_ARRIVAL_DEADLINE_SGT = "09:00";
+
+/**
+ * Grace window (minutes) before an arrival counts as late. Absorbs GPS jitter
+ * and small traffic variance so the flag only fires on genuinely late starts.
+ */
+export const FIRST_JOB_ARRIVAL_GRACE_MIN = 10;
+
+/**
+ * How many minutes after the 09:00 SGT deadline the crew reached the first job.
+ * Negative/zero means on time or early. Timezone-safe regardless of server TZ:
+ * 09:00 SGT === (09:00 − 8h) UTC on the workday's Singapore calendar day.
+ *
+ * The deadline is anchored to `dayAnchor` (the attendance clock-in time) so that
+ * GPS stops detected after SGT midnight — e.g. from sparse/late points — are
+ * still measured against the SAME workday's 09:00, not the next day's. When no
+ * anchor is given it falls back to the arrival's own SGT calendar day.
+ *
+ * @param arrival    the GPS-detected first-job arrival time
+ * @param dayAnchor  the workday reference (attendance clock-in); optional
+ */
+export function firstJobMinutesLate(arrival: Date | string, dayAnchor?: Date | string): number {
+  const a = (typeof arrival === "string" ? new Date(arrival) : arrival).getTime();
+  if (!isFinite(a)) return 0;
+  const anchorMs = dayAnchor != null
+    ? (typeof dayAnchor === "string" ? new Date(dayAnchor) : dayAnchor).getTime()
+    : a;
+  const base = isFinite(anchorMs) ? anchorMs : a;
+  const sgt = new Date(base + 8 * 3600 * 1000); // workday date in SGT wall-clock
+  const y = sgt.getUTCFullYear(), m = sgt.getUTCMonth(), d = sgt.getUTCDate();
+  const [hh, mm] = FIRST_JOB_ARRIVAL_DEADLINE_SGT.split(":").map(Number);
+  const deadlineUtc = Date.UTC(y, m, d, hh - 8, mm, 0); // 09:00 SGT in UTC
+  return Math.round((a - deadlineUtc) / 60000);
+}
+
 /** Summarise a PricingResult for storage in the quotes table. */
 export function pricingToQuoteFields(result: PricingResult) {
   return {
