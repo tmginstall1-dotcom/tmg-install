@@ -107,3 +107,9 @@ id = "NLEi06BwmbvYhV35SGu6a"
 uri = "file://attached_assets/reports/Apr2026_NgKimBoon_Overclaim_v3.pdf"
 type = "pdf"
 title = "Ng Kim Boon — April 2026 Over-Claim (Driver clock + last work site)"
+
+[[outputs]]
+id = "pZh2KMe0s9C6dOJ1oeUbo"
+uri = "file://tmg-staff-v1.3-apk.zip"
+type = "unspecified"
+title = "TMG Staff App v1.3 (with Break button) — unzip to get the .apk"
