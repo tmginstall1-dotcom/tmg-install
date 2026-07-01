@@ -16,9 +16,16 @@ unauthenticated queries; the `error` string is a warning, not a failure.
 - Do NOT treat the presence of `error` (or any auth-sounding message) as fatal.
   Branch on HTTP status and `results.length`, never on the `error` field.
 - The proxy's `if (!upstream.ok)` guard is correct because the response is 200.
-- OneMap's matcher dislikes the word "Block" — "Block 261 Serangoon" returns 0
-  results while "Serangoon Central" or the postal code "550261" return matches.
-  Tell users to type the road/postal code, and show a graceful no-results state.
+- OneMap's matcher dislikes the "BLK"/"BLOCK" prefix — "BLK 420 CLEMENTI AVENUE 1"
+  returns 0 results while "420 CLEMENTI AVENUE 1" resolves exactly. Same for
+  "Block 261 Serangoon". This silently broke staff GPS "on-site" matching for
+  GGV/AI-imported jobs (whose addresses use the BLK prefix and often lack a
+  postal code): geocode returned null → job showed "NOT LOCATED".
+- Server-side `geocodeSgAddress` (server/geocode.ts) now tries ordered candidates
+  (raw → BLK-stripped → first comma segment → segment BLK-stripped) and no longer
+  caches null on transient 429/5xx (those throw TransientGeocodeError), so a blip
+  can't permanently mark a real site "not located". Client `/api/onemap/search`
+  autocomplete still needs users to type road/postal code + a graceful empty state.
 - If OneMap eventually hard-requires a token, the fix is a token step
   (POST email+password to its getToken endpoint, cache ~3 days) — would need
   ONEMAP credentials as secrets, affecting both Estimate and PackageBooking.
