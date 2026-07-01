@@ -47,6 +47,14 @@ reuses ALL existing job machinery — dashboard buckets, admin Assign, staff app
 - `stripQuotePricingForStaff` nulls known money fields but does NOT touch `ggv`,
   so staff intentionally still see the GGV price. Keep `ggv` out of its
   MONEY_FIELDS list.
+- The GGV "value name" (what the job actually is) = `ggvJobs.remarks` (e.g.
+  "MYDAL BNK BD FRM 90X200 PINE AP"). Surface it via `ggv.remarks` on the
+  response and on the mirrored quote's single $0 line item
+  (`ggvItemDescription` = "remarks (or generic) · jobNo"). Line item stays
+  serviceType `fee` so itemLabel shows it verbatim (no "Installation of…"
+  prefix). `syncQuoteFromGGV` re-writes that description on GGV edit, scoped to
+  the fee/$0 line so admin-added lines aren't clobbered. Displayed on the admin
+  dashboard row subtitle, admin QuoteDetail value block, and staff JobDetail.
 
 ## Deliberate non-changes
 - Mirror-link creation is **best-effort** (errors logged, not fatal). **Why:** a

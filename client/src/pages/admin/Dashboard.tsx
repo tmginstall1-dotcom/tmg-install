@@ -98,6 +98,9 @@ function QuoteRow({ quote }: { quote: any }) {
           <span className="text-[#0A0A0A]/65 font-mono tracking-tight mr-2">{quote.referenceNo}</span>
           {quote.serviceAddress || quote.pickupAddress || "No address"}
         </p>
+        {quote.ggv?.remarks && (
+          <p className="text-[11px] text-black/45 truncate mt-0.5 font-medium">{quote.ggv.remarks}</p>
+        )}
       </div>
       <div className="shrink-0 text-right flex items-center gap-4">
         <div>

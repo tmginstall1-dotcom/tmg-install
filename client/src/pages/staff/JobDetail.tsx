@@ -856,6 +856,7 @@ export default function JobDetail() {
                     {job.ggv.jobNo || "—"}
                     {job.ggv.serviceType ? ` · ${job.ggv.serviceType}` : ""}
                   </p>
+                  {job.ggv.remarks && <p className="text-[13px] font-semibold text-foreground/90 mt-0.5 leading-snug break-words">{job.ggv.remarks}</p>}
                   <p className="text-base font-black text-emerald-700 mt-0.5">
                     ${Number(job.ggv.actualPrice || 0).toFixed(2)}
                     <span className="text-[11px] font-semibold text-muted-foreground ml-1.5">paid via GoGoVan</span>

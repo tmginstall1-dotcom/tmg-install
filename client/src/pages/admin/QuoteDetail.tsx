@@ -2899,6 +2899,7 @@ export default function AdminQuoteDetail() {
  <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700 flex items-center gap-1.5">
  <Truck className="w-3.5 h-3.5" /> GoGoVan Job Value
  </p>
+ {quote.ggv.remarks && <p className="text-[13px] font-bold text-emerald-900 mt-1 leading-snug break-words">{quote.ggv.remarks}</p>}
  <p className="text-[11px] text-emerald-700/70 mt-0.5">Paid via GoGoVan — shown for reference, not added to this job's total.</p>
  </div>
  <span className="text-lg font-bold text-emerald-800 tabular-nums shrink-0">{formatMoney(quote.ggv.actualPrice)}</span>

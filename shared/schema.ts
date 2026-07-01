@@ -930,6 +930,7 @@ export type QuoteResponse = Quote & {
     listedPrice: string | null;
     deduction: string | null;
     serviceType: string | null;
+    remarks: string | null;
   };
 };
 

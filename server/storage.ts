@@ -879,6 +879,7 @@ export class DatabaseStorage implements IStorage {
           listedPrice: ggvJobs.listedPrice,
           deduction: ggvJobs.deduction,
           serviceType: ggvJobs.serviceType,
+          remarks: ggvJobs.remarks,
         })
         .from(ggvJobs)
         .where(eq(ggvJobs.quoteId, quoteId))
@@ -934,13 +935,13 @@ export class DatabaseStorage implements IStorage {
       ggvQuoteIds.length ? db.select({
         quoteId: ggvJobs.quoteId, jobNo: ggvJobs.jobNo, bookingRef: ggvJobs.bookingRef,
         actualPrice: ggvJobs.actualPrice, listedPrice: ggvJobs.listedPrice,
-        deduction: ggvJobs.deduction, serviceType: ggvJobs.serviceType,
+        deduction: ggvJobs.deduction, serviceType: ggvJobs.serviceType, remarks: ggvJobs.remarks,
       }).from(ggvJobs).where(inArray(ggvJobs.quoteId, ggvQuoteIds)) : Promise.resolve([]),
     ]);
     const ggvByQuote = new Map<number, QuoteResponse["ggv"]>();
     for (const g of allGGV) if (g.quoteId != null) ggvByQuote.set(g.quoteId, {
       jobNo: g.jobNo, bookingRef: g.bookingRef, actualPrice: g.actualPrice,
-      listedPrice: g.listedPrice, deduction: g.deduction, serviceType: g.serviceType,
+      listedPrice: g.listedPrice, deduction: g.deduction, serviceType: g.serviceType, remarks: g.remarks,
     });
 
     // Build lookup maps
@@ -2120,6 +2121,14 @@ export class DatabaseStorage implements IStorage {
     return { serviceAddress, scheduledAt, timeWindow };
   }
 
+  // The line-item "value name" for a mirrored GGV job: the real item from the
+  // GGV sheet (remarks, e.g. "MYDAL BNK BD FRM 90X200 PINE AP") when present,
+  // else a generic label. The job code rides along so the line stays traceable.
+  private ggvItemDescription(ggv: GGVJob): string {
+    const name = ggv.remarks?.trim() || `GoGoVan ${ggv.serviceType || "delivery / installation"}`.trim();
+    return [name, ggv.jobNo].filter(Boolean).join(" · ");
+  }
+
   // All GGV jobs share one synthetic "customer" so the customer directory isn't
   // polluted with one throwaway contact per delivery. The job address carries
   // the real location.
@@ -2151,11 +2160,12 @@ export class DatabaseStorage implements IStorage {
     }).returning();
     await db.insert(quoteItems).values({
       quoteId: q.id,
-      // Include the GGV job code in the line so it is identifiable on the job
-      // sheet. unitPrice/subtotal stay $0 — the real GGV price is shown via the
-      // quote's `ggv` display block, and keeping items at $0 means editQuote's
-      // total recompute can never accidentally double-count GGV money.
-      originalDescription: [`GoGoVan ${ggv.serviceType || "delivery / installation"}`.trim(), ggv.jobNo].filter(Boolean).join(" · "),
+      // Use the real GGV item (remarks) as the line's "value name", with the job
+      // code appended so it stays identifiable on the job sheet. unitPrice/
+      // subtotal stay $0 — the real GGV price is shown via the quote's `ggv`
+      // display block, and keeping items at $0 means editQuote's total recompute
+      // can never accidentally double-count GGV money.
+      originalDescription: this.ggvItemDescription(ggv),
       serviceType: "fee",
       quantity: 1,
       unitPrice: "0",
@@ -2176,6 +2186,12 @@ export class DatabaseStorage implements IStorage {
   async syncQuoteFromGGV(quoteId: number, ggv: GGVJob): Promise<void> {
     const { serviceAddress, scheduledAt, timeWindow } = this.ggvQuoteFields(ggv);
     await db.update(quotes).set({ serviceAddress, scheduledAt, timeWindow }).where(eq(quotes.id, quoteId));
+    // Keep the mirrored line item's "value name" in step when the GGV item/code
+    // changes. Scoped to the system $0 'fee' line so any admin-added item is
+    // never clobbered.
+    await db.update(quoteItems)
+      .set({ originalDescription: this.ggvItemDescription(ggv) })
+      .where(and(eq(quoteItems.quoteId, quoteId), eq(quoteItems.serviceType, "fee"), eq(quoteItems.unitPrice, "0")));
   }
 
   async addSiteEvent(data: { event: string; page?: string; label?: string; referrer?: string; utmSource?: string; utmMedium?: string; utmCampaign?: string; sessionId?: string; deviceType?: string }): Promise<SiteEvent> {
