@@ -921,6 +921,24 @@ function RosterRow({ staff, log, status, liveLocation }: {
  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
  <span className="text-xs font-bold text-emerald-600">Clocked in · {format(new Date(log.clockInAt), "h:mm a")}</span>
  </div>
+ {(() => {
+ // Live break: an open break has a startAt but no endAt yet. The roster
+ // refetches every 30s so this running counter self-updates on its own.
+ const breaks = Array.isArray(log?.breaks) ? log.breaks : [];
+ const open = breaks.find((b: any) => b?.startAt && !b?.endAt);
+ if (!open) return null;
+ const ts = new Date(open.startAt).getTime();
+ if (!Number.isFinite(ts)) return null;
+ const brkMins = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+ return (
+ <div className="flex items-center gap-1.5" data-testid={`status-onbreak-${staff.id}`}>
+ <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+ <span className="text-xs font-bold text-amber-600">
+ On break ☕ · {brkMins}m (since {format(new Date(ts), "h:mm a")})
+ </span>
+ </div>
+ );
+ })()}
  <div className="flex items-center gap-1.5 flex-wrap">
  {hasInGps && (
  <>
