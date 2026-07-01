@@ -2,6 +2,7 @@
 - [APK build ↔ GitHub sync](apk-github-build-sync.md) — staff-app UI is baked into the APK; new APKs build from GitHub main (separate from Replit deploy). Stale/expired GitHub push = staff apps silently miss UI changes.
 - [Per-job fee pattern](per-job-fee-pattern.md) — add new per-job fees by folding them into `editQuote` total recompute, not into payment/email endpoints.
 - [Balance computation spots](balance-computation-spots.md) — outstanding balance recomputed inline in ~7 routes + email; change together, subtract getLedgerPaidTotal not the deposit baseline.
+- [Reopen paid job on add-on](reopen-paid-job-on-addon.md) — raising total on a paid-in-full job must seed a `reconciled` ledger row for the already-paid amount THEN recomputeQuotePaymentState to clear finalPaidAt, or 50/50 jobs get double-billed.
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [WhatsApp media proxy](whatsapp-media-proxy.md) — endpoints feeding browser `<video>`/`<audio>` must answer HTTP Range (206) or Safari/iOS won't play/download; gate force-download behind `?download=1`.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.

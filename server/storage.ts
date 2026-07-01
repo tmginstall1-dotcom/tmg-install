@@ -1319,6 +1319,10 @@ export class DatabaseStorage implements IStorage {
       // Re-fetch after the quoteUpdates write so we see the latest values.
       const existingQuote = await db.select().from(quotes).where(eq(quotes.id, id));
       const current = existingQuote[0];
+      // Total BEFORE this recompute — used below to detect an increase on a
+      // job that was already marked fully paid (e.g. an add-on charged during
+      // installation) so we can re-open the balance for collection.
+      const oldTotal = Number(current?.total || 0);
       const transportFee = Number(current?.transportFee ?? 0);
       // volumetricFee is the per-m³ handling portion that lives INSIDE the
       // transportFee bucket; it's only ever broken back out for display
@@ -1400,6 +1404,33 @@ export class DatabaseStorage implements IStorage {
         depositAmount,
         finalAmount,
       }).where(eq(quotes.id, id));
+
+      // Re-open the balance when an edit RAISES the total on a job that was
+      // already marked fully paid — e.g. the customer adds an item during the
+      // installation. Without this, finalPaidAt / paymentStatus='paid_in_full'
+      // stay set, every balance surface reads $0, and the extra can never be
+      // billed. We first seed a ledger baseline equal to whatever the customer
+      // already paid (their previous total) that isn't already covered by the
+      // recorded deposit + existing ledger rows. That keeps "paid so far"
+      // correct for BOTH small full-upfront jobs (final payment lived only in
+      // the deposit, gap = 0) and 50/50 jobs (the paid final was never a ledger
+      // row, so gap = that final). recomputeQuotePaymentState then clears
+      // finalPaidAt and drops the status back to deposit_paid so the new
+      // balance becomes collectible through the normal payment flows.
+      if (current?.finalPaidAt && total > oldTotal + 0.005) {
+        const alreadyPaid = oldTotal; // fully paid ⇒ they paid the previous total
+        const covered = this.depositBaseline(current) + await this.getLedgerPaidTotal(id);
+        const gap = alreadyPaid - covered;
+        if (gap > 0.005) {
+          await db.insert(quotePayments).values({
+            quoteId: id,
+            amount: gap.toFixed(2),
+            method: 'reconciled',
+            note: 'Previously collected payment (reconciled after add-on charge)',
+          });
+        }
+        await this.recomputeQuotePaymentState(id);
+      }
     }
 
     if (requestedStatus === 'booking_pending') {
