@@ -741,3 +741,19 @@ section[data-testid^="section-"] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ── iOS auto-zoom prevention ──────────────────────────────────────────────
+   Safari/iOS zooms the whole page in whenever you focus a form control whose
+   font-size is under 16px (and won't zoom back out on its own). Many admin
+   inputs/selects hardcode Tailwind's `text-sm` (14px), which lives in
+   @layer utilities and overrides the base rule above — so the page keeps
+   zooming on tap. This rule sits OUTSIDE every @layer and uses !important so
+   it always wins over those utilities. Scoped to phone widths only, so the
+   compact desktop density is untouched and pinch-to-zoom still works. ── */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
