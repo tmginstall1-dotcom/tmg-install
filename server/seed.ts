@@ -3850,6 +3850,65 @@ export async function seedDatabase() {
     console.log(`[startup] Round 42: IKEA common-category coverage — inserted ${inserted} new SKU row(s).`);
   }
 
+  /* ─── Round 43: Electric / adjustable hospital care bed ───────────────────
+     Motorised 3-function home-care / hospital bed (single width): steel deck in
+     head/knee/height sections, ABS head + foot panels, drop-down side rails, 4
+     castor wheels, motor + hand controller. Assembly is heavier and more fiddly
+     than a plain single frame (rails, motor wiring, multi-section deck), so it
+     sits above Platform Bed (SS) but below a Loft bed. Pricing is calibrated to
+     the SG market and the existing bed ladder in this catalog:
+       install 130 / dismantle 90 / dispose 80 / dismantle_dispose 140.
+     Relocate follows the current-round D&R bundle rule: (install+dismantle)×0.6.
+     volumeM3 0.85 — the solid steel base + motor doesn't flat-pack, so it takes
+     more Hiace space than a knock-down single frame (0.45) despite single width.
+     Idempotent by SKU; admins can fine-tune later in the catalog UI.
+     Marker: HOSPITAL-BED-R43-MARKER. ── */
+  const r43 = await db.select().from(catalogItems).where(eq(catalogItems.sku, "HOSPITAL-BED-R43-MARKER")).limit(1);
+  if (r43.length === 0) {
+    const bedItems = [
+      { name: "Electric Hospital / Care Bed (Single)", category: "Beds", skuBase: "HOSPITAL-BED-ELECTRIC-SINGLE", install: 130, dismantle: 90, dispose: 80, disDisp: 140, vol: 0.85 },
+    ];
+
+    let inserted = 0;
+    for (const it of bedItems) {
+      const relocate = Math.round((it.install + it.dismantle) * 0.6);
+      const vol = it.vol.toFixed(2);
+      const rows: Array<{ sku: string; serviceType: string; basePrice: number }> = [
+        { sku: `${it.skuBase}-INSTALL`,   serviceType: "install",           basePrice: it.install },
+        { sku: `${it.skuBase}-DISMANTLE`, serviceType: "dismantle",         basePrice: it.dismantle },
+        { sku: `${it.skuBase}-RELOCATE`,  serviceType: "relocate",          basePrice: relocate },
+        { sku: `${it.skuBase}-DISPOSE`,   serviceType: "dispose",           basePrice: it.dispose },
+        { sku: `${it.skuBase}-DIS-DISP`,  serviceType: "dismantle_dispose", basePrice: it.disDisp },
+      ];
+      for (const row of rows) {
+        const exists = await db.select().from(catalogItems).where(eq(catalogItems.sku, row.sku)).limit(1);
+        if (exists.length === 0) {
+          await db.insert(catalogItems).values({
+            name: it.name,
+            sku: row.sku,
+            category: it.category,
+            serviceType: row.serviceType,
+            basePrice: row.basePrice.toFixed(2),
+            volumeM3: vol,
+            active: true,
+          } as any);
+          inserted++;
+        }
+      }
+    }
+
+    await db.insert(catalogItems).values({
+      name: "__hospital_bed_r43_marker__",
+      sku: "HOSPITAL-BED-R43-MARKER",
+      category: "_internal",
+      serviceType: "install",
+      basePrice: "0",
+      active: false,
+    } as any);
+
+    console.log(`[startup] Round 43: Electric hospital / care bed — inserted ${inserted} new SKU row(s).`);
+  }
+
   // Quick-reply template library — seed the dispute-scenario templates idempotently
   // (by slug). Bodies keep {{placeholders}} so live business-rule values are
   // substituted at render time. Existing edited templates are never overwritten.
