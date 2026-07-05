@@ -309,6 +309,104 @@ function DiagnosticsPanel() {
  );
 }
 
+type LearnedLesson = {
+ id: string;
+ lesson: string;
+ category: string;
+ reinforced: number;
+ active: boolean;
+ createdAt: string;
+ lastReinforcedAt: string;
+ sourceOutcome: string;
+};
+
+function LessonsPanel() {
+ const { toast } = useToast();
+ const qc = useQueryClient();
+ const { data, isLoading } = useQuery<{ lessons: LearnedLesson[] }>({
+ queryKey: ["/api/admin/ai/whatsapp/lessons"],
+ refetchInterval: 60000,
+ });
+ const lessons = data?.lessons ?? [];
+
+ const toggleLesson = useMutation({
+ mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+ apiRequest("PATCH", `/api/admin/ai/whatsapp/lessons/${id}`, { active }),
+ onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/ai/whatsapp/lessons"] }),
+ onError: () => toast({ title: "Failed to update lesson", variant: "destructive" }),
+ });
+ const deleteLesson = useMutation({
+ mutationFn: (id: string) =>
+ apiRequest("DELETE", `/api/admin/ai/whatsapp/lessons/${id}`),
+ onSuccess: () => { toast({ title: "Lesson removed" }); qc.invalidateQueries({ queryKey: ["/api/admin/ai/whatsapp/lessons"] }); },
+ onError: () => toast({ title: "Failed to remove lesson", variant: "destructive" }),
+ });
+
+ return (
+ <div className="bg-white dark:bg-white/[0.02] border border-black/10 rounded-none overflow-hidden">
+ <div className="px-4 py-3 border-b border-black/5 dark:border-white/5 flex items-center gap-2">
+ <Zap className="w-4 h-4 text-black/55" />
+ <h3 className="text-sm font-bold text-[#0A0A0A]/70">What the AI Has Learned</h3>
+ <span className="ml-auto text-xs font-semibold text-black/55 dark:text-white/30 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
+ {lessons.filter(l => l.active).length} active
+ </span>
+ </div>
+ <div className="px-4 py-2 border-b border-black/5 dark:border-white/5">
+ <p className="text-[11px] text-black/55 leading-snug">
+ After real chats, the AI reviews what went well or badly and writes itself short lessons. It applies the active ones on every reply. Turn any off if you disagree.
+ </p>
+ </div>
+
+ {isLoading ? (
+ <p className="px-4 py-6 text-xs text-black/55 text-center">Loading lessons…</p>
+ ) : lessons.length === 0 ? (
+ <div className="px-4 py-8 text-center">
+ <Zap className="w-8 h-8 text-[#0A0A0A]/10 mx-auto mb-3" />
+ <p className="text-sm text-black/55">No lessons learned yet.</p>
+ <p className="text-xs text-black/45 mt-1">Lessons appear here after the AI handles a few real conversations.</p>
+ </div>
+ ) : (
+ <div className="divide-y divide-black/5 dark:divide-white/5">
+ {lessons.map(l => (
+ <div key={l.id} className="px-4 py-3 flex items-start gap-3" data-testid={`lesson-${l.id}`}>
+ <div className="flex-1 min-w-0">
+ <p className={`text-sm leading-snug ${l.active ? "text-[#0A0A0A]/80" : "text-black/40 line-through"}`}>
+ {l.lesson}
+ </p>
+ <p className="text-[10px] text-black/45 mt-1 uppercase tracking-wider">
+ {l.category} · reinforced {l.reinforced}×
+ </p>
+ </div>
+ <button
+ data-testid={`toggle-lesson-${l.id}`}
+ onClick={() => toggleLesson.mutate({ id: l.id, active: !l.active })}
+ disabled={toggleLesson.isPending}
+ className={`flex-shrink-0 relative inline-flex h-6 w-11 items-center rounded-full border-2 transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+ l.active ? "bg-[#0A0A0A] border-black/10" : "bg-[#F5F4F0] border-black/10"
+ }`}
+ role="switch"
+ aria-checked={l.active}
+ title={l.active ? "Active — click to disable" : "Disabled — click to enable"}
+ >
+ <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${l.active ? "translate-x-5" : "translate-x-0.5"}`} />
+ </button>
+ <button
+ data-testid={`delete-lesson-${l.id}`}
+ onClick={() => deleteLesson.mutate(l.id)}
+ disabled={deleteLesson.isPending}
+ className="flex-shrink-0 p-1.5 rounded-lg hover:bg-[#FBEBEB] transition-colors disabled:opacity-50"
+ title="Delete lesson"
+ >
+ <XCircle className="w-4 h-4 text-[#C1121F]" />
+ </button>
+ </div>
+ ))}
+ </div>
+ )}
+ </div>
+ );
+}
+
 export default function AIWhatsApp() {
  const { toast } = useToast();
  const qc = useQueryClient();
@@ -469,6 +567,9 @@ export default function AIWhatsApp() {
  ))
  )}
  </div>
+
+ {/* ── Learned Lessons ────────────────────────────────────── */}
+ <LessonsPanel />
 
  {/* ── Diagnostics ────────────────────────────────────────── */}
  <DiagnosticsPanel />

@@ -37,7 +37,7 @@ import {
   ADMIN_EMAIL
 } from "./email";
 import { sendWhatsAppMessage, sendBotMessage, sendWhatsAppPaymentLink, updateAccessToken, getAccessToken, downloadWhatsAppMedia, markAsRead, WHATSAPP_VERIFY_TOKEN, sendWhatsAppImageMessage, sendWhatsAppDocumentMessage } from "./whatsapp";
-import { processWithAIAgent, getAiConversations, getAiConversationDetail, handoffToHuman, resumeAiOwnership, runFollowUpScheduler } from "./whatsapp-agent";
+import { processWithAIAgent, getAiConversations, getAiConversationDetail, handoffToHuman, resumeAiOwnership, runFollowUpScheduler, getLearnedLessons, saveLearnedLessons, reviewConversationForLessons } from "./whatsapp-agent";
 import multer from "multer";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -11752,6 +11752,72 @@ Respond directly — no JSON, just the message text.`,
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
       await resumeAiOwnership(req.params.phone, `admin:${user.username}`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── WhatsApp AI learned lessons (self-learning) — admin-only ──────────────
+  app.get("/api/admin/ai/whatsapp/lessons", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const lessons = await getLearnedLessons();
+      lessons.sort((a, b) => (b.reinforced - a.reinforced) || b.lastReinforcedAt.localeCompare(a.lastReinforcedAt));
+      res.json({ lessons });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Toggle a lesson active/inactive
+  app.patch("/api/admin/ai/whatsapp/lessons/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const lessons = await getLearnedLessons();
+      const lesson = lessons.find(l => l.id === req.params.id);
+      if (!lesson) return res.status(404).json({ message: "Lesson not found" });
+      if (typeof req.body?.active === "boolean") lesson.active = req.body.active;
+      await saveLearnedLessons(lessons);
+      res.json({ ok: true, lesson });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Delete a lesson
+  app.delete("/api/admin/ai/whatsapp/lessons/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const lessons = await getLearnedLessons();
+      const next = lessons.filter(l => l.id !== req.params.id);
+      await saveLearnedLessons(next);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Manually trigger a review of a conversation to learn from it now
+  app.post("/api/admin/ai/whatsapp/conversations/:phone/review", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const detail = await getAiConversationDetail(req.params.phone);
+      const history = detail?.session?.conversationHistory
+        ? JSON.parse(detail.session.conversationHistory)
+        : [];
+      if (!Array.isArray(history) || history.length < 4) {
+        return res.status(400).json({ message: "Conversation too short to review (need at least 4 messages)." });
+      }
+      await reviewConversationForLessons(history, "manual_admin_review");
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });

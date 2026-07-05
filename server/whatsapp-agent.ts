@@ -708,6 +708,284 @@ export function isPriceIntent(text: string): boolean {
   return PRICE_INTENT_REGEX.test(text || "");
 }
 
+// Detect when the customer is asking a QUESTION (not just handing over facts).
+// When true we must ANSWER it before nudging for the next detail — otherwise
+// the bot feels robotic (the "keeps asking for my address" complaint).
+const QUESTION_INTENT_REGEX =
+  /\?|\b(how|what|which|why|when|can you|could you|do you|does it|is it|are you|would|explain|tell me|example|e\.?g\.?|per\s*(item|piece|unit)|count(ed)?\s*as)\b/i;
+export function isQuestionIntent(text: string): boolean {
+  return QUESTION_INTENT_REGEX.test(text || "");
+}
+
+// ── Pricing primer (cached) ───────────────────────────────────────────────────
+// Gives the sales agent REAL example prices plus a plain-language explanation of
+// how our pricing works, so it can actually answer "how much for X?" / "is it
+// per item?" / "example for a small dining table?" instead of stonewalling with
+// another qualifier question. Numbers are pulled live from the catalog (same
+// median match the indicative range uses) so they never drift from the real
+// price book. Cached for 10 min to avoid a DB hit on every inbound message.
+let _pricingPrimerCache: { text: string; at: number } | null = null;
+const PRICING_PRIMER_TTL_MS = 10 * 60 * 1000;
+
+async function buildPricingPrimer(): Promise<string> {
+  if (_pricingPrimerCache && Date.now() - _pricingPrimerCache.at < PRICING_PRIMER_TTL_MS) {
+    return _pricingPrimerCache.text;
+  }
+  const commonItems = ["dining table", "wardrobe", "bed frame", "office desk", "bookshelf", "tv mount", "cabinet", "study desk"];
+  const lines: string[] = [];
+  for (const item of commonItems) {
+    try {
+      const m = await findCatalogMatch(item, "install");
+      if (m && m.basePrice > 0) {
+        lines.push(`- ${item}: installation from about SGD ${Math.round(m.basePrice)} each`);
+      }
+    } catch { /* skip a single item on error */ }
+  }
+  const examples = lines.length
+    ? `TYPICAL STARTING PRICES (per item, before floor / lift / access adjustments — always phrase as "from around $X", never as a final price):\n${lines.join("\n")}`
+    : "";
+  const howItWorks = `HOW OUR PRICING WORKS (use this to answer pricing questions plainly and confidently):
+- We price PER ITEM, based on the item type and the service you need (install, dismantle, relocate, or dispose). More items = higher total.
+- The final price also depends on the floor level, whether there's a lift, and how easy the access is.
+- You get a fixed, itemised quote before any work starts — no hourly rates, no hidden charges.
+- You do NOT need to have bought the furniture yet — we can estimate from the item type and how many you'll have.`;
+  const text = `${howItWorks}${examples ? `\n\n${examples}` : ""}`.trim();
+  _pricingPrimerCache = { text, at: Date.now() };
+  return text;
+}
+
+// ── Self-learning: learned lessons store (appSettings JSON) ────────────────────
+// The agent reviews real conversations (see reviewConversationForLessons) and
+// distills short BEHAVIOURAL lessons about how to respond better. They are kept
+// as a small capped list in appSettings (key below) — no schema migration
+// needed — and injected into the sales-reply prompt so the bot self-corrects
+// over time. Lessons are about HOW to reply (tone, when to answer vs ask), never
+// about specific prices (pricing always stays grounded in the catalog).
+const LEARNED_LESSONS_KEY = "ai_whatsapp_learned_lessons";
+const MAX_ACTIVE_LESSONS = 25;
+const LESSONS_IN_PROMPT = 8;
+
+export interface LearnedLesson {
+  id: string;
+  lesson: string;
+  category: string;        // e.g. "answer_questions", "pricing", "tone", "flow"
+  reinforced: number;      // how many reviews independently surfaced this lesson
+  active: boolean;
+  createdAt: string;
+  lastReinforcedAt: string;
+  sourceOutcome: string;   // what triggered the review that created it
+}
+
+export async function getLearnedLessons(): Promise<LearnedLesson[]> {
+  try {
+    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, LEARNED_LESSONS_KEY)).limit(1);
+    if (!row?.value) return [];
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? (parsed as LearnedLesson[]) : [];
+  } catch { return []; }
+}
+
+export async function saveLearnedLessons(lessons: LearnedLesson[]): Promise<void> {
+  const value = JSON.stringify(lessons);
+  try {
+    await db.insert(appSettings)
+      .values({ key: LEARNED_LESSONS_KEY, value } as any)
+      .onConflictDoUpdate({ target: appSettings.key, set: { value } });
+  } catch (e: any) {
+    console.warn("[whatsapp-agent] saveLearnedLessons failed:", e?.message);
+  }
+}
+
+// Top active lessons formatted for the sales-reply system prompt.
+function formatLessonsForPrompt(lessons: LearnedLesson[]): string {
+  const active = lessons
+    .filter(l => l.active && l.lesson?.trim())
+    .sort((a, b) => (b.reinforced - a.reinforced) || (b.lastReinforcedAt.localeCompare(a.lastReinforcedAt)))
+    .slice(0, LESSONS_IN_PROMPT);
+  if (active.length === 0) return "";
+  return `LEARNED LESSONS (from reviewing our past chats — apply these, they fix real mistakes we've made):\n${active.map(l => `- ${l.lesson.trim()}`).join("\n")}`;
+}
+
+// Like getFlag, but returns `dflt` when the flag row doesn't exist yet. Used for
+// self-learning, which we want ON by default (the user asked for it) while still
+// leaving an admin off-switch.
+async function getFlagOrDefault(key: string, dflt: boolean): Promise<boolean> {
+  try {
+    const rows = await db.select().from(aiFeatureFlags).where(eq(aiFeatureFlags.key, key)).limit(1);
+    return rows.length ? (rows[0]?.value ?? dflt) : dflt;
+  } catch { return dflt; }
+}
+
+// Rough similarity between two lesson strings (word-overlap Jaccard) so a review
+// that surfaces the same idea reinforces the existing lesson instead of adding a
+// near-duplicate.
+function lessonSimilarity(a: string, b: string): number {
+  const norm = (s: string) => new Set(
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2)
+  );
+  const sa = norm(a), sb = norm(b);
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  sa.forEach(w => { if (sb.has(w)) inter++; });
+  return inter / (sa.size + sb.size - inter);
+}
+
+// Self-learning writes are fire-and-forget and can fire concurrently (handoff +
+// quote_ready + low_rating on overlapping chats). Each is a read-modify-write of
+// one JSON blob in app_settings, so without serialization concurrent writers
+// clobber each other and drop lessons/reinforcements. This module-level promise
+// chain serializes the whole read→merge→save inside this (single) process.
+let lessonWriteLock: Promise<unknown> = Promise.resolve();
+function withLessonLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = lessonWriteLock.then(fn, fn);
+  // keep the chain alive regardless of individual outcomes
+  lessonWriteLock = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+// Lessons are distilled by an LLM from UNTRUSTED customer transcripts and later
+// injected verbatim into future sales system prompts. That makes them a durable
+// prompt-injection / PII-retention vector. This gate is defence-in-depth on top
+// of the extractor prompt: it drops anything that looks customer-specific
+// (names/phones/addresses/emails/postal codes), any hard numbers/prices (pricing
+// must always come from the catalog, never a learned lesson), any links, and any
+// classic prompt-injection phrasing. Returns a cleaned lesson or null to reject.
+function sanitizeLessonText(raw: string): string | null {
+  let s = (raw || "").replace(/\s+/g, " ").trim();
+  if (s.length < 8 || s.length > 240) return null;
+
+  const lower = s.toLowerCase();
+
+  // Prompt-injection / instruction-hijack phrasing — never let these persist.
+  const INJECTION = [
+    "ignore previous", "ignore the previous", "ignore all previous", "disregard",
+    "system prompt", "you are now", "act as", "pretend to be", "forget your",
+    "override", "new instructions", "developer mode", "jailbreak",
+    "reveal your", "print your", "repeat this", "```", "<system", "[system",
+  ];
+  if (INJECTION.some(m => lower.includes(m))) return null;
+
+  // Contact / customer-specific PII patterns.
+  const PII_PATTERNS: RegExp[] = [
+    /[\w.+-]+@[\w-]+\.[\w.-]+/,                 // email
+    /https?:\/\/|www\./i,                        // URLs
+    /(?:\+?65[\s-]?)?[689]\d{3}[\s-]?\d{4}/,     // SG mobile / phone
+    /\b\d{6}\b/,                                  // SG postal code
+    /#\d{1,3}[-–]\d{1,4}/,                        // unit number e.g. #12-34
+    /\b(?:blk|block)\s*\d+/i,                     // HDB block
+  ];
+  if (PII_PATTERNS.some(re => re.test(s))) return null;
+
+  // Any concrete money amount or multi-digit number → likely an invented price
+  // or a customer-specific quantity. Pricing must come from the catalog only, so
+  // reject rather than risk the bot quoting a hallucinated figure.
+  if (/[$€£]\s?\d/.test(s)) return null;
+  if (/\d{3,}/.test(s)) return null;
+
+  return s;
+}
+
+const lessonReviewSchema = z.object({
+  lessons: z.array(z.string()).max(3).optional(),
+});
+
+/**
+ * Self-learning reviewer. Looks at a real conversation plus its outcome and
+ * distills up to 3 short BEHAVIOURAL lessons the sales bot should apply next
+ * time (how to respond — never specific prices). New lessons are merged against
+ * existing ones (similar ones are reinforced, not duplicated) and the list is
+ * capped. Fire-and-forget: callers must NOT await this on the reply path.
+ *
+ * Gated by the master kill switch + `ai_whatsapp_self_learning_enabled`
+ * (default ON). Safe to call often — it self-throttles on history length.
+ */
+export async function reviewConversationForLessons(
+  history: Array<{ role: string; content: string }>,
+  outcome: string,
+): Promise<void> {
+  try {
+    if (await getFlag("ai_master_kill_switch")) return;
+    if (!(await getFlagOrDefault("ai_whatsapp_self_learning_enabled", true))) return;
+    if (!Array.isArray(history) || history.length < 4) return; // too little signal
+
+    const transcript = history
+      .slice(-16)
+      .map(m => `${m.role === "assistant" ? "BOT" : "CUSTOMER"}: ${m.content}`)
+      .join("\n");
+
+    const { value: parsed } = await callLLM<{ lessons?: string[] }>({
+      agent: "whatsapp_lesson_review",
+      max_tokens: 300,
+      schema: lessonReviewSchema,
+      messages: [
+        {
+          role: "system",
+          content: `You are a QA coach for a WhatsApp furniture-installation SALES bot in Singapore. You review a real chat and its outcome, then write short, reusable lessons that will make the bot better at similar chats.
+
+RETURN a JSON object: { "lessons": string[] } with 0 to 3 lessons. Return an empty array if the bot handled it well and there's nothing new to learn.
+
+EACH LESSON MUST:
+- Be about HOW the bot should behave (answering the real question, tone, when to give an example price, when to ask vs. help, avoiding repeated questions). NEVER about specific prices or numbers — pricing always comes from the catalog, not from you.
+- Be a single actionable imperative sentence, generic enough to reuse (not tied to this one customer's name/address).
+- Be genuinely new/insightful — skip generic advice like "be polite".
+
+OUTCOME OF THIS CHAT: ${outcome}
+
+Focus especially on: did the bot ANSWER the customer's questions, or did it keep demanding details? Did it repeat itself? Did it give a helpful ballpark when asked about price?`,
+        },
+        { role: "user", content: `CHAT TRANSCRIPT:\n${transcript}` },
+      ],
+    });
+
+    // Safety gate: drop anything customer-specific, price-bearing, or that looks
+    // like an injection payload BEFORE it can ever be persisted or re-injected.
+    const newLessons = (parsed?.lessons ?? [])
+      .map(s => sanitizeLessonText(s || ""))
+      .filter((s): s is string => !!s);
+    if (newLessons.length === 0) return;
+
+    // Serialize the read→merge→save so overlapping reviewers don't clobber.
+    const capped = await withLessonLock(async () => {
+      const existing = await getLearnedLessons();
+      const nowIso = new Date().toISOString();
+
+      for (const text of newLessons) {
+        const match = existing.find(l => lessonSimilarity(l.lesson, text) >= 0.6);
+        if (match) {
+          match.reinforced += 1;
+          match.lastReinforcedAt = nowIso;
+          match.active = true; // resurfacing re-activates a previously-disabled lesson
+        } else {
+          existing.push({
+            id: `L${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+            lesson: text,
+            category: outcome.startsWith("low_rating") ? "correction" : outcome.startsWith("handoff") ? "flow" : "answer_questions",
+            reinforced: 1,
+            active: true,
+            createdAt: nowIso,
+            lastReinforcedAt: nowIso,
+            sourceOutcome: outcome,
+          });
+        }
+      }
+
+      // Cap: keep the strongest (most-reinforced, then most-recent) lessons.
+      existing.sort((a, b) => (b.reinforced - a.reinforced) || b.lastReinforcedAt.localeCompare(a.lastReinforcedAt));
+      const next = existing.slice(0, MAX_ACTIVE_LESSONS);
+      await saveLearnedLessons(next);
+      return next;
+    });
+
+    await logAudit("ai_lessons_learned", "ai_agent",
+      `Reviewed conversation (${outcome}); ${newLessons.length} lesson(s) distilled`,
+      { outcome, lessons: newLessons, totalStored: capped.length }).catch(() => {});
+  } catch (e: any) {
+    if (!(e instanceof KillSwitchError) && !(e instanceof CircuitOpenError)) {
+      console.warn("[whatsapp-agent] reviewConversationForLessons failed:", e?.message);
+    }
+  }
+}
+
 // ── Sales Reply Generation ────────────────────────────────────────────────────
 async function generateSalesReply(params: {
   from: string;
@@ -760,6 +1038,18 @@ async function generateSalesReply(params: {
 - Do NOT just ask the question without giving the range first. The customer wants a number before sharing more details.${priceRange.unmatchedTerms.length ? `\n- Note: some items used a generic estimate (${priceRange.unmatchedTerms.join(", ")}) so the exact quote may differ once our team reviews the photo.` : ""}`
     : "";
 
+  // Did the customer ask a question this turn? If so, answering it is priority #1.
+  const askedQuestion = isQuestionIntent(text);
+
+  // Pricing primer (real example prices + how pricing works) and self-learned
+  // lessons — both cached / lightweight — so the bot can actually answer and
+  // improves over time. Fetched in parallel; failures degrade gracefully.
+  const [pricingPrimer, lessons] = await Promise.all([
+    buildPricingPrimer().catch(() => ""),
+    getLearnedLessons().catch(() => [] as LearnedLesson[]),
+  ]);
+  const lessonsBlock = formatLessonsForPrompt(lessons);
+
   try {
     const { value: replyText } = await callLLM<string>({
       agent: "whatsapp_sales_reply",
@@ -768,34 +1058,35 @@ async function generateSalesReply(params: {
         {
           role: "system",
           content: `You are the AI sales assistant for TMG Install, a professional furniture installation company in Singapore.
-Your job is to qualify leads and help push them toward a quote and booking — but ACCURACY beats speed. Wrong information costs us trust.
+Your #1 job is to be genuinely HELPFUL. Answering the customer's actual question earns trust and wins the booking; ignoring it to demand details loses them. Qualifying the lead is secondary to helping.
 
-TRUST SIGNALS (mention naturally where relevant):
-- 4.9★ rated on Google · 127+ reviews
-- Fully insured · Island-wide coverage · Same-day available
+TOP PRIORITY — ANSWER FIRST, THEN NUDGE:
+- If the customer asked ANYTHING this turn (${askedQuestion ? "they DID ask a question — you MUST answer it directly this turn" : "check their message"}) — a price, how it works, what counts as an item, an example, timing — ANSWER IT DIRECTLY AND SPECIFICALLY before anything else.
+- For "how much for X?" or "example for a small X?" give a real ballpark ("from around $X") using the pricing info below. NEVER dodge a price question by asking for the address first.
+- Only AFTER you've helped, add at most ONE gentle next question — and only if it flows naturally.
 
-ACCURACY RULES (most important — read carefully):
-- BEFORE quoting any price or confirming a booking, briefly echo back what you understood and ask the customer to confirm. Example: "Just to confirm — you need IKEA PAX wardrobe installation at Tampines, two units, is that right?"
-- If the customer's message is ambiguous (could mean install vs dismantle vs relocate, could be one item or many, item type unclear), DO NOT GUESS — ask one clarifying question first.
-- Never invent pricing. Use ONLY the indicative range below if one is provided. If no range is provided, say "let me have our team confirm the exact price" — never make up a number, never round, never quote per-hour rates.
-- If items in the customer message could not be matched to our catalog (you'll see them listed under unmatched terms), explicitly say "some of those items will need our team to confirm pricing" instead of pretending the range covers them.
-- Never promise specific slots, exact arrival times, or discounts that aren't already approved.
-- If you are not >80% sure of what the customer wants, prefer to ask a clarifying question OR say our team will follow up — do not make claims you can't back up.
+DO NOT STONEWALL (this is the mistake we most want to fix):
+- NEVER reply with only a demand for the address (or any single detail) when the customer asked something else. The full address is needed ONLY once they're ready for a firm quote or to book.
+- NEVER repeat a question you already asked in the history. If they didn't answer it, help them first, then ask again differently or let it go for now.
 
-STYLE RULES:
-- Be concise, warm, and sales-oriented
-- Ask ONLY the single most important missing piece of information per turn
-- NEVER re-ask for anything already present in KNOWN FACTS — if a fact is filled in, treat it as settled and move on to the NEXT MISSING FACT
-- If the customer just shared a specific detail (e.g. "each blind needs 4 holes", a floor number, a date), briefly acknowledge it in your reply before asking the next question — don't ignore it or repeat your previous message
-- Never ask multiple questions at once
-- Keep under 90 words
-- Use plain conversational language, no markdown
-- End with a clear single question
+TRUST SIGNALS (weave in naturally, occasionally — not every message): 4.9★ on Google · 127+ reviews · fully insured · island-wide · same-day available.
 
+ACCURACY RULES:
+- Never invent exact prices. Phrase example prices as "from around $X" / "typically" ballparks using ONLY the numbers below or the indicative range. If you truly have no number for something, say our team will confirm it — never make one up or quote per-hour rates.
+- If items couldn't be matched to our catalog (listed under unmatched terms), say those will need our team to confirm pricing rather than pretending the range covers them.
+- If the request is genuinely ambiguous (install vs dismantle vs relocate, one item vs many), ask ONE clarifying question instead of guessing.
+- Never promise specific slots, arrival times, or discounts that aren't approved.
+
+STYLE:
+- Warm, concise, conversational. No markdown. Under 90 words. Plain Singapore English is fine.
+- Acknowledge what they just said before adding anything. Don't repeat your previous message.
+
+${pricingPrimer}
+${lessonsBlock ? `\n${lessonsBlock}\n` : ""}
 KNOWN FACTS: ${JSON.stringify(facts)}
 CURRENT STATE: ${aiState}
-NEXT MISSING FACT: ${nextMissing || "none — all facts collected"}
-SUGGESTED QUESTION: ${nextMissing ? questionMap[nextMissing] || `What is your ${nextMissing}?` : "Push toward quote/booking"}
+IF THE CUSTOMER IS READY TO PROCEED, the most useful next detail is: ${nextMissing || "none — all facts collected, move toward the quote/booking"}
+(A natural way to ask, only when appropriate — do NOT lead with this if they asked a question): ${nextMissing ? questionMap[nextMissing] || `What is your ${nextMissing}?` : "Move toward quote/booking"}
 ${priceHint}${bundleUpsellHint}
 
 CONVERSATION HISTORY:
@@ -1071,6 +1362,17 @@ export async function processWithAIAgent(params: {
             console.warn("[feedback-loop] review-request gating failed:", revErr?.message);
           }
 
+          // Self-learning: a low rating (<=3) is a failure signal — review the
+          // preceding chat so the bot can correct itself. Fire-and-forget.
+          if (ratingVal <= 3) {
+            try {
+              const priorHistory = session?.conversationHistory
+                ? JSON.parse(session.conversationHistory)
+                : [];
+              void reviewConversationForLessons(priorHistory, `low_rating:${ratingVal}`);
+            } catch { /* history parse best-effort */ }
+          }
+
           return true;
         }
       }
@@ -1249,6 +1551,13 @@ export async function processWithAIAgent(params: {
       await logAudit("handoff_triggered", "ai_agent", `Handoff to human: reason=${handoffCheck.reason}`, {
         correlationId, phone: masked, reason: handoffCheck.reason, confidence,
       });
+
+      // Self-learning: a handoff means the bot couldn't close on its own — a
+      // strong signal to review what went wrong. Fire-and-forget (never blocks).
+      void reviewConversationForLessons(
+        [...history, { role: "user", content: text }, { role: "assistant", content: handoffMsg }],
+        `handoff:${handoffCheck.reason}`,
+      );
 
       return true;
     }
@@ -1516,6 +1825,12 @@ export async function processWithAIAgent(params: {
       // early-return branch including the auto-qualify-disabled path.
       updatedAt: now,
     } as any);
+
+    // Self-learning: when a chat first reaches quote_ready the bot did its job —
+    // review it to learn what WORKED (reinforces good behaviour). Fire-and-forget.
+    if (newAiState === "quote_ready" && currentAiState !== "quote_ready") {
+      void reviewConversationForLessons(updatedHistory, "quote_ready");
+    }
 
     // ── 15. Schedule follow-up if qualifying and no followup yet ──────────────
     const followupsEnabled = await getFlag("ai_whatsapp_followups_enabled");

@@ -44,3 +44,4 @@
 - [GGV job→quote mirror](ggv-quote-mirror.md) — each GGV job bridges to a $0 'booked'/'gogovan' quote (one shared synthetic customer) for dashboard/assign/staff/GPS; delete GGV row BEFORE quote; mirror-link is best-effort + PATCH-backfilled.
 - [Per-person staff job scoping](staff-jobs-scoping.md) — getQuotesForStaff includes teammates' solo jobs; use getQuotesAssignedTo (self + own team only) for payroll/per-person GPS site checks.
 - [SGT day windows](sgt-day-window.md) — admin date picker = Singapore UTC+8 day; build ranges with `+08:00` ISO offset, not server-local midnight, or GPS/jobs near midnight land in the wrong day.
+- [WhatsApp self-learning lessons](whatsapp-self-learning-lessons.md) — bot distills behavioral lessons from untrusted chats into appSettings + injects them; MUST sanitizeLessonText (no PII/prices/injection) before persist/inject; serialize writes via withLessonLock.
