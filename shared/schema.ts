@@ -52,6 +52,7 @@ export const users = pgTable("users", {
   hourlyRate: numeric("hourly_rate").default("0"),    // SGD per hour, first 8 hrs/day
   overtimeRate: numeric("overtime_rate").default("0"),// SGD per hour, after 8 hrs/day
   annualLeaveEntitlement: integer("annual_leave_entitlement").default(14), // days per year
+  absenceDeductionRate: numeric("absence_deduction_rate").default("0"),   // SGD deducted per day of absence / leave beyond entitlement (0 = derive from salary)
   // Push notification token (Firebase Cloud Messaging — registered from Android app)
   fcmToken: text("fcm_token"),
   // Optional clock-in time restriction — "HH:MM" in SGT (e.g. "07:25"). If set, staff may only clock in within ±10 min of this time.

@@ -318,6 +318,7 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
  monthlyRate: staff.monthlyRate || "0",
  hourlyRate: staff.hourlyRate || "0",
  overtimeRate: staff.overtimeRate || "0",
+ absenceDeductionRate: staff.absenceDeductionRate || "0",
  annualLeaveEntitlement: staff.annualLeaveEntitlement ?? 14,
  });
 
@@ -364,8 +365,9 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
  {field("Overtime Rate", "after 8 hrs", "overtimeRate", "input-overtime-rate")}
  </div>
 
- {/* Leave entitlement */}
- <div className="space-y-1 w-full sm:w-1/3">
+ {/* Leave entitlement + absence deduction rate */}
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ <div className="space-y-1">
  <div className="flex items-baseline justify-between">
  <label className="text-xs font-medium text-zinc-700">Annual Leave</label>
  <span className="text-[10px] text-zinc-500">days/yr</span>
@@ -375,6 +377,11 @@ function PaySettingsForm({ staff, onClose }: { staff: any; onClose: () => void }
  className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors"
  data-testid="input-leave-entitlement" />
  </div>
+ {field("Absence Deduction", "per day, 0 = auto", "absenceDeductionRate", "input-absence-deduction-rate")}
+ </div>
+ <p className="text-[10px] text-zinc-500 -mt-3">
+ Deducted for each day of unpaid leave or annual leave taken beyond the yearly entitlement. Leave at 0 to derive from salary (monthly ÷ 26).
+ </p>
 
  <div className="flex gap-3 pt-4 border-t border-zinc-100 mt-6">
  <button onClick={() => mut.mutate()} disabled={mut.isPending}

@@ -36,6 +36,13 @@
       "when": 1782801051180,
       "tag": "0004_old_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783337001816,
+      "tag": "0005_good_vertigo",
+      "breakpoints": true
     }
   ]
 }

@@ -3150,6 +3150,7 @@ export async function registerRoutes(
         hourlyRate: z.string().optional(),
         overtimeRate: z.string().optional(),
         annualLeaveEntitlement: z.number().int().min(0).max(30).optional(),
+        absenceDeductionRate: z.string().optional(),
       }).parse(req.body);
       const updated = await storage.updatePaySettings(userId, data);
       res.json(updated);
@@ -3266,18 +3267,39 @@ export async function registerRoutes(
         grossPay    = regularPay + overtimePay + mealAllowance + transportAllowance;
       }
 
-      // Fetch unpaid leave deductions in period
+      // Fetch approved leave requests and work out deductible (unpaid) days.
       const allLeaves = await storage.getAllLeaveRequests('approved');
-      const unpaidLeaves = allLeaves.filter(l =>
-        l.userId === userId &&
-        l.leaveType === 'unpaid' &&
-        l.startDate >= periodStart &&
-        l.startDate <= periodEnd
-      );
-      const unpaidDays = unpaidLeaves.reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
-      // Daily rate: monthly salary ÷ 26 working days, or hourly × 8
-      const dailyRate = isMonthly ? monthlyRate / 26 : hourlyRate * 8;
-      const leaveDeduction = unpaidDays * dailyRate;
+      const forUser = allLeaves.filter(l => l.userId === userId);
+
+      // 1) Leave explicitly marked "unpaid" within the pay period.
+      const unpaidDays = forUser
+        .filter(l => l.leaveType === 'unpaid' && l.startDate >= periodStart && l.startDate <= periodEnd)
+        .reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
+
+      // 2) Annual leave taken BEYOND the yearly entitlement is automatically
+      //    unpaid (no manual marking needed). Across the leave year, count how
+      //    many of the annual-leave days that fall in THIS pay period sit above
+      //    the remaining paid balance at the start of the period.
+      const entitlement = (staffMember as any).annualLeaveEntitlement ?? 14;
+      const periodYear = new Date(periodStart + "T00:00:00").getFullYear();
+      const yearStart = `${periodYear}-01-01`;
+      const annualBefore = forUser
+        .filter(l => l.leaveType === 'annual' && l.startDate >= yearStart && l.startDate < periodStart)
+        .reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
+      const annualInPeriod = forUser
+        .filter(l => l.leaveType === 'annual' && l.startDate >= periodStart && l.startDate <= periodEnd)
+        .reduce((s, l) => s + parseFloat(l.totalDays as string), 0);
+      const paidRemainingBefore = Math.max(0, entitlement - annualBefore);
+      const overEntitlementDays = Math.max(0, annualInPeriod - paidRemainingBefore);
+
+      const deductibleDays = unpaidDays + overEntitlementDays;
+
+      // Per-day rate: use the staff member's fixed absence deduction rate when
+      // set (e.g. a contractual S$/day figure), otherwise derive from salary
+      // (monthly ÷ 26 working days, or hourly × 8).
+      const absenceRate = parseFloat((staffMember as any).absenceDeductionRate as string || "0");
+      const dailyRate = absenceRate > 0 ? absenceRate : (isMonthly ? monthlyRate / 26 : hourlyRate * 8);
+      const leaveDeduction = deductibleDays * dailyRate;
       grossPay -= leaveDeduction;
 
       // Fetch active loans and apply monthly repayments

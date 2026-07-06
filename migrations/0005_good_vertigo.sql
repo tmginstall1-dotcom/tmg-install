@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "absence_deduction_rate" numeric DEFAULT '0';

@@ -87,7 +87,7 @@ export interface IStorage {
   getLeaveBalance(userId: number, year: number): Promise<{ entitlement: number; used: number; pending: number; remaining: number }>;
 
   // Pay Settings
-  updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }): Promise<typeof users.$inferSelect | undefined>;
+  updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number; absenceDeductionRate?: string }): Promise<typeof users.$inferSelect | undefined>;
   updateFcmToken(userId: number, token: string): Promise<void>;
   getFcmTokensByUserIds(userIds: number[]): Promise<string[]>;
 
@@ -730,7 +730,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Pay Settings
-  async updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number }) {
+  async updatePaySettings(userId: number, settings: { payType?: string; monthlyRate?: string; hourlyRate?: string; overtimeRate?: string; annualLeaveEntitlement?: number; absenceDeductionRate?: string }) {
     const [updated] = await db.update(users).set(settings as any).where(eq(users.id, userId)).returning();
     return updated;
   }
