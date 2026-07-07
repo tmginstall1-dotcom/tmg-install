@@ -20,6 +20,7 @@ jobs:
       KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      BUILD_WEBHOOK_TOKEN: ${{ secrets.BUILD_WEBHOOK_TOKEN }}
 
     steps:
       - name: Checkout repo
@@ -158,9 +159,7 @@ jobs:
       # ── Auto-notify server: staff apps show update banner immediately ──────────
 
       - name: Notify server of new build (OTA auto-update)
-        if: ${{ secrets.BUILD_WEBHOOK_TOKEN != '' }}
-        env:
-          BUILD_WEBHOOK_TOKEN: ${{ secrets.BUILD_WEBHOOK_TOKEN }}
+        if: ${{ env.BUILD_WEBHOOK_TOKEN != '' }}
         run: |
           RUN_NUM=${{ github.run_number }}
           RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
