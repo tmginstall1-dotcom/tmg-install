@@ -41,16 +41,15 @@ android {
             def ksPath = System.getenv("KEYSTORE_PATH")
             def ksPassword = System.getenv("KEYSTORE_PASSWORD")
             def ksAlias = System.getenv("KEY_ALIAS")
-            if (!ksPath || !ksPassword || !ksAlias) {
-                throw new GradleException(
-                    "Release signing requires KEYSTORE_PATH, KEYSTORE_PASSWORD, and KEY_ALIAS " +
-                    "environment variables. Set them from GitHub Actions secrets before building."
-                )
+            // Only configure signing when the keystore env vars are present.
+            // The debug build (assembleDebug) evaluates this block too but does
+            // not need signing, so we must NOT throw when the vars are absent.
+            if (ksPath && ksPassword && ksAlias) {
+                storeFile file(ksPath)
+                storePassword ksPassword
+                keyAlias ksAlias
+                keyPassword ksPassword
             }
-            storeFile file(ksPath)
-            storePassword ksPassword
-            keyAlias ksAlias
-            keyPassword ksPassword
         }
     }
 
@@ -61,7 +60,10 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // Sign the release only when keystore credentials are available.
+            if (System.getenv("KEYSTORE_PATH") && System.getenv("KEYSTORE_PASSWORD") && System.getenv("KEY_ALIAS")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
