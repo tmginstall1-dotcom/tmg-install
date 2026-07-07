@@ -11,6 +11,7 @@ import {
   Receipt, Upload, Trash2, ImageIcon, CreditCard,
 } from "lucide-react";
 import OfficialPayslip from "@/components/OfficialPayslip";
+import SignaturePad from "@/components/SignaturePad";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || "";
 
@@ -781,7 +782,21 @@ function PayslipsTab() {
   const { data: loans = [] } = useQuery<any[]>({ queryKey: ["/api/staff/loans"], refetchInterval: 60_000 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [printingPayslip, setPrintingPayslip] = useState<any | null>(null);
+  const [signingPayslip, setSigningPayslip] = useState<any | null>(null);
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const activeLoans = (loans as any[]).filter((l: any) => l.isActive && parseFloat(l.remainingBalance || "0") > 0);
+
+  const ackMut = useMutation({
+    mutationFn: ({ id, signature }: { id: number; signature: string }) =>
+      apiRequest("POST", `/api/staff/payslips/${id}/acknowledge`, { signature }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/staff/payslips"] });
+      setSigningPayslip(null);
+      toast({ title: "Payslip signed", description: "Your signature has been saved to this payslip." });
+    },
+    onError: (e: any) => toast({ title: "Could not sign", description: e.message, variant: "destructive" }),
+  });
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -925,6 +940,34 @@ function PayslipsTab() {
                     </div>
                   )}
 
+                  {ps.acknowledgedAt ? (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-xl px-3 py-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Signed Off</p>
+                      </div>
+                      {ps.signature && (
+                        <img
+                          src={ps.signature}
+                          alt="Your signature"
+                          className="h-14 bg-white rounded-lg border border-emerald-200 px-2 object-contain object-left"
+                          data-testid={`img-signature-${ps.id}`}
+                        />
+                      )}
+                      <p className="text-[10px] text-emerald-600 mt-1.5">
+                        Signed {format(new Date(ps.acknowledgedAt), "d MMM yyyy, h:mm a")}
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setSigningPayslip(ps)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-primary text-primary font-bold rounded-xl hover:bg-primary/5 transition-colors text-sm"
+                      data-testid={`button-signoff-${ps.id}`}
+                    >
+                      <Edit3 className="w-4 h-4" /> Sign Off Payslip
+                    </button>
+                  )}
+
                   <button
                     onClick={() => setPrintingPayslip(ps)}
                     className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity text-sm"
@@ -946,6 +989,16 @@ function PayslipsTab() {
           staffUsername={user?.username}
           loans={loans as any[]}
           onClose={() => setPrintingPayslip(null)}
+        />
+      )}
+
+      {signingPayslip && (
+        <SignaturePad
+          title="Sign Off Payslip"
+          subtitle={`${format(parseISO(signingPayslip.periodStart), "d MMM")} – ${format(parseISO(signingPayslip.periodEnd), "d MMM yyyy")}`}
+          saving={ackMut.isPending}
+          onSave={(sig) => ackMut.mutate({ id: signingPayslip.id, signature: sig })}
+          onClose={() => setSigningPayslip(null)}
         />
       )}
     </div>

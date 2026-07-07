@@ -20,6 +20,8 @@ interface PayslipData {
   deductionDetails?: { reason: string; minutes: number }[];
   grossPay: string;
   notes?: string;
+  signature?: string;
+  acknowledgedAt?: string;
   createdAt?: string;
   isMonthlyBased?: boolean;
   user?: { name: string; username: string; monthlyRate?: string };
@@ -63,6 +65,11 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
   const totalEarnings = basic + regP + otP + meal + transp;
   const mealDays      = meal > 0 ? Math.round(meal / 8) : 0;
   const transpJobs    = transp > 0 ? Math.round(transp / 8) : 0;
+
+  const signature = payslip.signature || "";
+  const ackAt = payslip.acknowledgedAt
+    ? format(new Date(payslip.acknowledgedAt), "d MMM yyyy, h:mm a")
+    : "";
 
   const fmtMins = (m: number) => {
     const h = Math.floor(m / 60), mm = m % 60;
@@ -408,8 +415,9 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
       <div class="sig-label">Authorised Signature &amp; Company Stamp</div>
     </div>
     <div class="sig-block">
+      ${signature ? `<img src="${signature}" alt="Employee signature" style="max-height:52px;max-width:100%;display:block;margin:0 auto 2px;" />` : ""}
       <div class="sig-line"></div>
-      <div class="sig-label">Employee Signature &amp; Date</div>
+      <div class="sig-label">Employee Signature &amp; Date${ackAt ? `<br/><span class="note" style="margin-left:0;">Signed ${ackAt}</span>` : ""}</div>
     </div>
   </div>
 
@@ -631,8 +639,13 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
               <p className="text-[8px] text-black/35 tracking-[0.5px]">Authorised Signature &amp; Company Stamp</p>
             </div>
             <div>
-              <div className="border-b-[1.5px] border-black h-9 mb-1.5" />
-              <p className="text-[8px] text-black/35 tracking-[0.5px]">Employee Signature &amp; Date</p>
+              {signature
+                ? <img src={signature} alt="Employee signature" className="h-9 mb-1.5 object-contain object-left" />
+                : <div className="border-b-[1.5px] border-black h-9 mb-1.5" />}
+              <p className="text-[8px] text-black/35 tracking-[0.5px]">
+                Employee Signature &amp; Date
+                {ackAt && <span className="block text-black/50">Signed {ackAt}</span>}
+              </p>
             </div>
           </div>
 

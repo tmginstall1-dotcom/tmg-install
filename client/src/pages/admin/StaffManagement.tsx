@@ -2993,6 +2993,11 @@ function PayslipsTab() {
  </div>
  </div>
  <div className="flex items-center gap-2">
+ <span
+ className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${ps.acknowledgedAt ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+ data-testid={`status-signoff-${ps.id}`}>
+ {ps.acknowledgedAt ? "✓ Signed" : "Pending"}
+ </span>
  <div className="text-right">
  <p className="text-xl font-bold text-zinc-900">S${parseFloat(ps.grossPay).toFixed(2)}</p>
  <p className="text-xs text-zinc-500">Gross Pay</p>
@@ -3027,11 +3032,25 @@ function PayslipsTab() {
  <p className="text-xs text-zinc-500">{ps.notes}</p>
  </div>
  )}
+ {ps.acknowledgedAt ? (
+ <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+ <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 mb-1.5">Employee Sign-Off</p>
+ {ps.signature && (
+ <img src={ps.signature} alt="Employee signature"
+ className="h-14 bg-white rounded border border-emerald-200 px-2 object-contain object-left"
+ data-testid={`img-signature-${ps.id}`} />
+ )}
+ <p className="text-[11px] text-emerald-600 mt-1.5">
+ Signed {format(new Date(ps.acknowledgedAt), "d MMM yyyy, h:mm a")} · retained as official record
+ </p>
+ </div>
+ ) : (
  <button onClick={() => { if (confirm("Delete this payslip?")) deleteMut.mutate(ps.id); }}
  className="inline-flex items-center gap-1.5 text-xs text-red-600 font-semibold hover:text-red-700 transition-colors"
  data-testid={`button-delete-payslip-${ps.id}`}>
  <Trash2 className="w-3.5 h-3.5" /> Delete Payslip
  </button>
+ )}
  </div>
  )}
  </div>

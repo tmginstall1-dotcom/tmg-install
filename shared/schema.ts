@@ -150,6 +150,11 @@ export const payslips = pgTable("payslips", {
   deductionDetails: jsonb("deduction_details").$type<{ reason: string; minutes: number }[]>().default([]),
   grossPay: numeric("gross_pay").default("0"),
   notes: text("notes"),
+  // Staff sign-off: drawn signature (PNG data URL) + when they acknowledged.
+  // Once set, the payslip is a signed official record and cannot be deleted
+  // (retention). See threat_model.md / payroll retention.
+  signature: text("signature"),
+  acknowledgedAt: timestamp("acknowledged_at"),
   generatedBy: integer("generated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });

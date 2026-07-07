@@ -95,6 +95,8 @@ export interface IStorage {
   generatePayslip(data: Omit<typeof payslips.$inferInsert, 'id' | 'createdAt'>): Promise<Payslip>;
   getPayslipsByUser(userId: number): Promise<Payslip[]>;
   getAllPayslips(userId?: number): Promise<PayslipWithUser[]>;
+  getPayslipById(id: number): Promise<Payslip | undefined>;
+  acknowledgePayslip(id: number, signature: string): Promise<Payslip>;
   deletePayslip(id: number): Promise<void>;
 
   // Staff Loans
@@ -765,6 +767,19 @@ export class DatabaseStorage implements IStorage {
       : await db.select().from(payslips).orderBy(desc(payslips.createdAt));
     const allUsers = await db.select().from(users);
     return rows.map(r => ({ ...r, user: allUsers.find(u => u.id === r.userId) }));
+  }
+
+  async getPayslipById(id: number): Promise<Payslip | undefined> {
+    const [p] = await db.select().from(payslips).where(eq(payslips.id, id));
+    return p;
+  }
+
+  async acknowledgePayslip(id: number, signature: string): Promise<Payslip> {
+    const [updated] = await db.update(payslips)
+      .set({ signature, acknowledgedAt: new Date() } as any)
+      .where(eq(payslips.id, id))
+      .returning();
+    return updated;
   }
 
   async deletePayslip(id: number): Promise<void> {

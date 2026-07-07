@@ -3516,6 +3516,31 @@ export async function registerRoutes(
     res.json(slips.map(s => ({ ...s, isMonthlyBased: monthlyRate > 0 })));
   });
 
+  // Staff signs off (acknowledges) their own payslip with a drawn signature.
+  app.post("/api/staff/payslips/:id/acknowledge", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    try {
+      const { signature } = z.object({
+        // Strictly a base64 PNG data URL, fully anchored. The base64 alphabet
+        // ([A-Za-z0-9+/=]) contains no HTML-dangerous chars, so this also
+        // prevents attribute breakout / stored XSS when the signature image is
+        // rendered into the printable payslip HTML.
+        signature: z.string()
+          .max(3_000_000, "Signature image too large")
+          .regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/, "Invalid signature image"),
+      }).parse(req.body);
+      const id = parseInt(req.params.id);
+      // Enforce ownership: only sign a payslip that belongs to the caller.
+      const mine = await storage.getPayslipsByUser(req.session.userId);
+      const slip = mine.find(s => s.id === id);
+      if (!slip) return res.status(404).json({ message: "Payslip not found" });
+      // Idempotent: a signed payslip is a locked record — don't overwrite it.
+      if ((slip as any).acknowledgedAt) return res.json(slip);
+      const updated = await storage.acknowledgePayslip(id, signature);
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   app.post("/api/admin/payslips/generate", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const callerGen = await storage.getUserById(req.session.userId);
@@ -3725,7 +3750,16 @@ export async function registerRoutes(
     const caller = await storage.getUserById(req.session.userId);
     if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
     try {
-      await storage.deletePayslip(parseInt(req.params.id));
+      const id = parseInt(req.params.id);
+      const slip = await storage.getPayslipById(id);
+      // Signed payslips are official records retained for at least 3 years —
+      // they cannot be deleted once the employee has signed off.
+      if (slip && (slip as any).acknowledgedAt) {
+        return res.status(400).json({
+          message: "This payslip has been signed off by the employee and is kept as an official record. It cannot be deleted.",
+        });
+      }
+      await storage.deletePayslip(id);
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
