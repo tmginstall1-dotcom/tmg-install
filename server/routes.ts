@@ -3206,26 +3206,51 @@ export async function registerRoutes(
       // Auto-detect: if monthly salary is set, treat as monthly-based regardless of payType flag
       const isMonthly = monthlyRate > 0;
 
-      // Calculate hours per day (cap regular at 8h/day, remainder is OT)
-      let regularHours = 0, overtimeHours = 0, mealAllowance = 0;
+      // Calculate hours per day (cap regular at 8h/day, remainder is OT).
+      // We track TWO sets of hours:
+      //   • gross* — worked time after unpaid breaks but BEFORE the admin's
+      //     working-time deduction. These are shown as Earnings on the payslip.
+      //   • net*   — after the admin deduction too. These drive the meal
+      //     allowance and, via the time-deduction line below, the net pay.
+      // The dollar value of the deduction = gross earnings − net earnings, so
+      // net pay is exactly what it was before we surfaced the breakdown.
+      let grossRegularHours = 0, grossOvertimeHours = 0;
+      let netRegularHours = 0, netOvertimeHours = 0, mealAllowance = 0;
+      let timeDeductionMinutes = 0;
+      const deductionByReason = new Map<string, number>();
       for (const log of logs) {
         if (log.clockOutAt) {
           const rawMs = new Date(log.clockOutAt).getTime() - new Date(log.clockInAt).getTime();
-          const dedMs = Math.max(0, ((log as any).deductionMinutes || 0)) * 60000;
+          const dedMin = Math.max(0, ((log as any).deductionMinutes || 0));
+          const dedMs = dedMin * 60000;
           // Staff-logged unpaid breaks are subtracted from worked hours.
           const breaks = (((log as any).breaks || []) as { startAt: string; endAt: string | null }[]);
           const breakMs = breaks.reduce((s, b) => b.endAt
             ? s + Math.max(0, new Date(b.endAt).getTime() - new Date(b.startAt).getTime())
             : s, 0);
-          const hrs = Math.max(0, rawMs - dedMs - breakMs) / 3600000;
-          const dailyOt = Math.max(0, hrs - 8);
-          regularHours  += Math.min(hrs, 8);
-          overtimeHours += dailyOt;
+          const grossHrs = Math.max(0, rawMs - breakMs) / 3600000;
+          const netHrs   = Math.max(0, rawMs - dedMs - breakMs) / 3600000;
+          grossRegularHours  += Math.min(grossHrs, 8);
+          grossOvertimeHours += Math.max(0, grossHrs - 8);
+          const dailyOt = Math.max(0, netHrs - 8);
+          netRegularHours  += Math.min(netHrs, 8);
+          netOvertimeHours += dailyOt;
           // Dinner allowance: from 1 Jul 2026, S$8 on any day with >= 2h OT
           // (no lunch allowance); legacy >3h rule applies before then.
           mealAllowance += mealAllowanceForDay(log.clockInAt, dailyOt);
+          if (dedMin > 0) {
+            timeDeductionMinutes += dedMin;
+            const reason = ((log as any).deductionReason || "").trim() || "Working-time deduction";
+            deductionByReason.set(reason, (deductionByReason.get(reason) || 0) + dedMin);
+          }
         }
       }
+      // Payslip Earnings display the gross worked hours; the deduction is shown
+      // as its own line so the reason is visible to the staff member.
+      const regularHours = grossRegularHours;
+      const overtimeHours = grossOvertimeHours;
+      const deductionDetails = [...deductionByReason.entries()]
+        .map(([reason, minutes]) => ({ reason, minutes }));
 
       // Per-job staff transport allowance: $8 for every job in the period where
       // admin enabled the toggle AND this staff was on the job — either as the
@@ -3252,19 +3277,26 @@ export async function registerRoutes(
         ));
       const transportAllowance = transportJobs.length * 8;
 
+      // Dollar value of the working-time deduction = gross earnings − net
+      // earnings. Subtracting it below keeps net pay identical to before this
+      // line existed, while the Earnings section now shows real worked hours.
+      const timeDeduction = Math.max(0,
+        (grossRegularHours * hourlyRate + grossOvertimeHours * overtimeRate) -
+        (netRegularHours   * hourlyRate + netOvertimeHours   * overtimeRate));
+
       let basicPay = 0, regularPay = 0, overtimePay = 0, grossPay = 0;
       if (isMonthly) {
         // Basic salary (fixed) + regular hrs × hourly rate + OT hrs × OT rate + meal + transport
         basicPay    = monthlyRate;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = basicPay + regularPay + overtimePay + mealAllowance + transportAllowance;
+        grossPay    = basicPay + regularPay + overtimePay + mealAllowance + transportAllowance - timeDeduction;
       } else {
         // Purely hourly: regular hrs × hourly rate + OT hrs × OT rate + meal + transport
         basicPay    = 0;
         regularPay  = regularHours * hourlyRate;
         overtimePay = overtimeHours * overtimeRate;
-        grossPay    = regularPay + overtimePay + mealAllowance + transportAllowance;
+        grossPay    = regularPay + overtimePay + mealAllowance + transportAllowance - timeDeduction;
       }
 
       // Fetch approved leave requests and work out deductible (unpaid) days.
@@ -3327,6 +3359,9 @@ export async function registerRoutes(
         transportAllowance: transportAllowance.toFixed(2),
         leaveDeduction: leaveDeduction.toFixed(2),
         loanDeduction: loanDeduction.toFixed(2),
+        timeDeduction: timeDeduction.toFixed(2),
+        timeDeductionMinutes,
+        deductionDetails,
         grossPay: Math.max(0, grossPay).toFixed(2),
         notes,
         generatedBy: req.session.userId,

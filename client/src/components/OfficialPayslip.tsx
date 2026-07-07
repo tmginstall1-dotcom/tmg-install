@@ -15,6 +15,9 @@ interface PayslipData {
   transportAllowance?: string;
   leaveDeduction: string;
   loanDeduction?: string;
+  timeDeduction?: string;
+  timeDeductionMinutes?: number;
+  deductionDetails?: { reason: string; minutes: number }[];
   grossPay: string;
   notes?: string;
   createdAt?: string;
@@ -54,11 +57,20 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
   const transp = parseFloat(payslip.transportAllowance || "0");
   const leave  = parseFloat(payslip.leaveDeduction || "0");
   const loan   = parseFloat(payslip.loanDeduction  || "0");
+  const timeD  = parseFloat(payslip.timeDeduction  || "0");
   const gross  = parseFloat(payslip.grossPay       || "0");
 
   const totalEarnings = basic + regP + otP + meal + transp;
   const mealDays      = meal > 0 ? Math.round(meal / 8) : 0;
   const transpJobs    = transp > 0 ? Math.round(transp / 8) : 0;
+
+  const fmtMins = (m: number) => {
+    const h = Math.floor(m / 60), mm = m % 60;
+    return h > 0 ? (mm > 0 ? `${h}h ${mm}m` : `${h}h`) : `${mm}m`;
+  };
+  const dedDetails   = (payslip.deductionDetails || []).filter(d => d && d.minutes > 0);
+  const timeDedMins  = payslip.timeDeductionMinutes || dedDetails.reduce((s, d) => s + d.minutes, 0);
+  const timeDedNote  = dedDetails.map(d => `${d.reason} — ${fmtMins(d.minutes)}`).join("; ");
 
   const isMonthly = (payslip.isMonthlyBased !== undefined)
     ? payslip.isMonthlyBased
@@ -341,6 +353,11 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
         <td>Unpaid Leave Deduction</td>
         <td class="amt">( ${sg(leave)} )</td>
       </tr>
+      ${timeD > 0 ? `
+      <tr class="deduct-row">
+        <td>Working-Time Deduction <span class="note">${fmtMins(timeDedMins)}</span>${timeDedNote ? `<br/><span class="note" style="margin-left:0;">${timeDedNote}</span>` : ""}</td>
+        <td class="amt">( ${sg(timeD)} )</td>
+      </tr>` : ""}
       ${loan > 0 ? `
       <tr class="deduct-row">
         <td>Loan Repayment</td>
@@ -540,6 +557,15 @@ export default function OfficialPayslip({ payslip, staffName, staffUsername, loa
                 <td className="py-2 text-black/60">Unpaid Leave Deduction</td>
                 <td className="py-2 text-right font-mono font-bold text-black/60">( {sg(leave)} )</td>
               </tr>
+              {timeD > 0 && (
+                <tr className="border-b border-black/[0.05]">
+                  <td className="py-2 text-black/60">
+                    Working-Time Deduction <span className="text-black/35 text-[11px]">{fmtMins(timeDedMins)}</span>
+                    {timeDedNote && <span className="block text-black/35 text-[11px] mt-0.5">{timeDedNote}</span>}
+                  </td>
+                  <td className="py-2 text-right font-mono font-bold text-black/60 align-top">( {sg(timeD)} )</td>
+                </tr>
+              )}
               {loan > 0 && (
                 <tr className="border-b border-black/[0.05]">
                   <td className="py-2 text-black/60">Loan Repayment</td>

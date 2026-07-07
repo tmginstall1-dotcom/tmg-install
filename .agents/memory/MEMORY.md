@@ -6,6 +6,7 @@
 - [Admin route authorization](admin-route-authz.md) — admin routes must check `caller.role==='admin'` via getUserById, not just session.userId; bind child resources to parent id to stop IDOR.
 - [WhatsApp media proxy](whatsapp-media-proxy.md) — endpoints feeding browser `<video>`/`<audio>` must answer HTTP Range (206) or Safari/iOS won't play/download; gate force-download behind `?download=1`.
 - [P&L salary calc](pnl-salary-calc.md) — P&L Staff Salary = full monthly salary (no calendar-day proration) + actual hourly/OT from attendance; keep in lockstep with payslip formula.
+- [Payslip time deduction](payslip-time-deduction.md) — payslip Earnings show GROSS hours; admin deductionMinutes surfaced as own line (=gross−net earnings) so net pay unchanged; meal uses NET OT.
 - [GGV scan columns](ggv-scan-columns.md) — GGV job-sheet has THREE money columns; actualPrice is the rightmost/smallest, read directly, never `listed − deduction`.
 - [On-site time clock](on-site-time-clock.md) — split sessions at SGT (fixed UTC+8) midnight; multi-day folds Day-2 hours into editQuote auto.
 - [drizzle schema changes](drizzle-push-interactive.md) — schema reaches DB via committed migrations + `drizzle-kit migrate` in post-merge; run `drizzle-kit generate` after editing schema; push abandoned (interactive rename prompt).

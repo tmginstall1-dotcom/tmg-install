@@ -132,6 +132,13 @@ export const payslips = pgTable("payslips", {
   transportAllowance: numeric("transport_allowance").default("0"),
   leaveDeduction: numeric("leave_deduction").default("0"),
   loanDeduction: numeric("loan_deduction").default("0"),
+  // Admin-applied working-time deductions (e.g. improper clock-in location).
+  // `timeDeduction` is the dollar value already reflected in net pay; the
+  // matching minutes + per-reason breakdown are snapshotted so the payslip can
+  // show WHY the time was deducted.
+  timeDeduction: numeric("time_deduction").default("0"),
+  timeDeductionMinutes: integer("time_deduction_minutes").default(0),
+  deductionDetails: jsonb("deduction_details").$type<{ reason: string; minutes: number }[]>().default([]),
   grossPay: numeric("gross_pay").default("0"),
   notes: text("notes"),
   generatedBy: integer("generated_by").references(() => users.id),
