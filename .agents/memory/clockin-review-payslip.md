@@ -7,8 +7,11 @@ description: How the pre-payslip clock-in review computes per-day lateness/deduc
 
 Admin reviews each installer's clock-in TIME + LOCATION once a month before generating a payslip, then applies per-day working-time deductions (which print on the payslip via the existing Working-Time Deduction line).
 
-## Rules are person/day-specific → human-in-the-loop
-Location correctness depends on unknowable daily context (e.g. installer only clocks in at job site on non-loading days; driver may clock in/out at van only if he drove out that day). So LOCATION is shown (readable address via GpsLocationPill) for the admin to judge — never auto-flagged. Only TIME is auto-flagged: late vs `users.clockInTime` (SGT "HH:MM"), 10-min grace, suggested deduction = late minutes capped at gross.
+## The auto-flag is LOCATION, not lateness
+The rule to check for installers: they must clock in either at the IKEA Alexandra warehouse OR at the day's FIRST job site. Lateness is explicitly NOT the rule (user corrected this). The review endpoint geocodes the earliest-scheduled job's site address (OneMap via geocodeSgAddress, cached) and haversine-compares the day's earliest clock-in GPS against IKEA Alexandra (fixed coords ~1.2894,103.8047) and the first-job coords with a 300m radius → matched ikea|firstJob, else offSite. Drivers have a different (van) rule the user didn't specify — the check is advisory, admin still sets the deduction amount.
+
+**Why:** location rules depend on daily context, but "IKEA OR first job site" cleanly covers the installer loading-day-vs-not case, so it can be auto-checked as advisory.
+**Edge case:** if a scheduled job exists but its address can't be geocoded, DON'T false-flag off-site — mark needsManualReview (CHECK badge) and let the admin judge. Days with no clock-in GPS → locationOk null (NO GPS).
 
 ## Must mirror bulkDeductAttendance day semantics
 The review endpoint (`GET /api/admin/attendance/review`) and apply (`POST /api/admin/attendance/apply-review`) MUST match `storage.bulkDeductAttendance` or the review preview diverges from what actually gets saved:

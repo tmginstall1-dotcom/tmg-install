@@ -1477,11 +1477,8 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
     if (!data?.days) return;
     const init: Record<string, { minutes: number; reason: string }> = {};
     for (const d of data.days) {
-      const minutes = d.existingDeduction > 0 ? d.existingDeduction : d.suggestedMinutes;
-      const reason = d.existingReason
-        || (d.late && d.suggestedMinutes > 0 && data.expectedStartTime
-              ? `Late clock-in: ${fmt(d.minutesLate)} past ${data.expectedStartTime}`
-              : "");
+      const minutes = d.existingDeduction > 0 ? d.existingDeduction : 0;
+      const reason = d.existingReason || d.suggestedReason || "";
       init[d.date] = { minutes, reason };
     }
     setEdits(init);
@@ -1502,7 +1499,7 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
   });
 
   const days: any[] = data?.days || [];
-  const flaggedCount = days.filter((d) => d.late).length;
+  const flaggedCount = days.filter((d) => d.offSite).length;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-4" data-testid="modal-review-clockins">
@@ -1543,10 +1540,8 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
 
         {/* Summary line */}
         <div className="px-5 py-2 bg-zinc-50 border-b border-zinc-100 text-xs text-zinc-600 shrink-0">
-          {data?.expectedStartTime
-            ? <>Expected start time: <strong>{data.expectedStartTime}</strong> (SGT). Clock-ins more than {data?.graceMinutes ?? 10} min late are flagged.</>
-            : <>No start time set for this staff — late flagging is off. Set one in the staff profile to auto-flag late clock-ins.</>}
-          {flaggedCount > 0 && <span className="ml-1 text-red-600 font-semibold">· {flaggedCount} late day(s)</span>}
+          Installers must clock in at <strong>{data?.ikeaLabel || "IKEA Alexandra warehouse"}</strong> or the day's <strong>first job site</strong>. Off-site clock-ins are flagged for review.
+          {flaggedCount > 0 && <span className="ml-1 text-red-600 font-semibold">· {flaggedCount} off-site day(s)</span>}
         </div>
 
         {/* Days table */}
@@ -1559,24 +1554,32 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
             <div className="space-y-3">
               {days.map((d) => {
                 const e = edits[d.date] || { minutes: 0, reason: "" };
-                const changedFromServer = e.minutes !== d.existingDeduction || (e.reason.trim() !== (d.existingReason || "").trim());
+                // A prefilled reason at 0 minutes is never persisted (no deduction to
+                // attach it to), so it must not make the row look dirty. Reason only
+                // counts as a change once there's an actual deduction.
+                const changedFromServer =
+                  e.minutes !== d.existingDeduction ||
+                  (e.minutes > 0 && e.reason.trim() !== (d.existingReason || "").trim());
                 return (
-                  <div key={d.date} className={`border rounded-lg p-3 ${d.late ? "border-red-200 bg-red-50/40" : "border-zinc-200"}`} data-testid={`review-day-${d.date}`}>
+                  <div key={d.date} className={`border rounded-lg p-3 ${d.offSite ? "border-red-200 bg-red-50/40" : "border-zinc-200"}`} data-testid={`review-day-${d.date}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-900">{format(parseISO(d.date), "EEE d MMM")}</span>
                         {!d.closed && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">NO CLOCK-OUT</span>}
-                        {d.late && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white" data-testid={`badge-late-${d.date}`}>LATE {fmt(d.minutesLate)}</span>}
+                        {d.offSite && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white" data-testid={`badge-offsite-${d.date}`}>OFF-SITE</span>}
+                        {d.matched === "ikea" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">AT IKEA</span>}
+                        {d.matched === "firstJob" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">AT FIRST JOB</span>}
+                        {d.needsManualReview && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700" data-testid={`badge-check-${d.date}`}>CHECK</span>}
+                        {d.locationOk === null && !d.needsManualReview && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">NO GPS</span>}
                       </div>
                       <span className="text-xs text-zinc-500">Worked {fmt(d.grossMinutes)}{d.breakMinutes > 0 ? ` · break ${fmt(d.breakMinutes)}` : ""}</span>
                     </div>
 
                     {/* time + location */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600 mb-2">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600 mb-1">
                       <span className="inline-flex items-center gap-1">
                         <LogIn className="w-3 h-3 text-emerald-500" />
                         {format(new Date(d.clockInAt), "h:mm a")}
-                        {data?.expectedStartTime && <span className="text-zinc-400"> / exp {data.expectedStartTime}</span>}
                       </span>
                       {d.clockInLat && d.clockInLng && <GpsLocationPill lat={d.clockInLat} lng={d.clockInLng} label="In" color="green" />}
                       {d.closed && (
@@ -1586,6 +1589,18 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
                         </span>
                       )}
                       {d.clockOutLat && d.clockOutLng && <GpsLocationPill lat={d.clockOutLat} lng={d.clockOutLng} label="Out" color="red" />}
+                    </div>
+
+                    {/* expected clock-in place + distances */}
+                    <div className="text-[11px] text-zinc-400 mb-2">
+                      {d.firstJobRef
+                        ? <>Expected at IKEA Alexandra or first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
+                        : <>Expected at IKEA Alexandra <span className="text-zinc-400">(no scheduled job found for this day)</span></>}
+                      {d.offSite && (
+                        <span className="text-red-500">
+                          {" · "}clocked in {d.distJobM != null ? `~${d.distJobM}m from job, ` : ""}~{d.distIkeaM}m from IKEA
+                        </span>
+                      )}
                     </div>
 
                     {/* deduction editor */}

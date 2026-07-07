@@ -2149,9 +2149,10 @@ export async function registerRoutes(
   });
 
   // Monthly clock-in review — one row per SGT working day for a staff member:
-  // clock-in/out time + location, worked hours, any existing deduction, and how
-  // late the clock-in was vs their set start time (users.clockInTime). Powers the
-  // "Review Clock-Ins" screen used before generating a payslip. Read-only.
+  // clock-in/out time + location, worked hours, any existing deduction, and
+  // WHERE they clocked in vs company rule (IKEA Alexandra warehouse OR the day's
+  // first job site). Powers the "Review Clock-Ins" screen before generating a
+  // payslip. Read-only.
   app.get("/api/admin/attendance/review", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);
@@ -2185,20 +2186,57 @@ export async function registerRoutes(
         return Math.round(m);
       };
 
-      const expected = (staffMember.clockInTime || "").trim();
-      const expMatch = /^(\d{1,2}):(\d{2})$/.exec(expected);
-      const expectedMin = expMatch ? parseInt(expMatch[1]) * 60 + parseInt(expMatch[2]) : null;
-      const GRACE = 10;
+      // ── Company clock-in LOCATION rule (installers) ─────────────────────────
+      // The thing to review is WHERE the installer clocked in, not how early/late.
+      // They must clock in either at the IKEA Alexandra loading warehouse OR at
+      // the day's FIRST job site. Clocking in anywhere else (home, a random spot)
+      // is what gets flagged. We check the clock-in GPS against both places and
+      // pre-fill a ready reason for off-site days; the admin still sets the amount.
+      const IKEA_ALEXANDRA = { lat: 1.2894, lng: 103.8047, label: "IKEA Alexandra warehouse" };
+      const MATCH_RADIUS_M = 300;
+      const haversineM = (la1: number, ln1: number, la2: number, ln2: number) => {
+        const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(la2 - la1), dLng = toRad(ln2 - ln1);
+        const x = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+      };
+      const firstSiteAddress = (q: any): string | null => {
+        const stops = Array.isArray(q.stops) ? q.stops : [];
+        if (stops.length > 0) {
+          const s = stops.find((x: any) => x?.address);
+          if (s?.address) return s.address as string;
+        }
+        return (q.pickupAddress || q.serviceAddress || q.dropoffAddress || null) as string | null;
+      };
+
+      // Earliest scheduled job (with a usable address) per SGT day for this staff.
+      const assigned = await storage.getQuotesAssignedTo(userId);
+      const jobsByDay: Record<string, any[]> = {};
+      for (const q of assigned) {
+        if (!q.scheduledAt) continue;
+        (jobsByDay[sgtDayKey(q.scheduledAt)] ||= []).push(q);
+      }
+      const firstJobByDay: Record<string, { referenceNo: string; address: string } | null> = {};
+      for (const k of Object.keys(jobsByDay)) {
+        const sorted = jobsByDay[k].sort(
+          (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+        );
+        const withAddr = sorted.map((q) => ({ q, address: firstSiteAddress(q) })).find((x) => x.address);
+        firstJobByDay[k] = withAddr
+          ? { referenceNo: withAddr.q.referenceNo, address: withAddr.address as string }
+          : null;
+      }
 
       const byDay: Record<string, any[]> = {};
       for (const l of logs) (byDay[sgtDayKey(l.clockInAt)] ||= []).push(l);
 
-      const days = Object.keys(byDay).sort().map((day) => {
+      const days = await Promise.all(Object.keys(byDay).sort().map(async (day) => {
         const dayLogs = byDay[day];
         const closedLogs = dayLogs.filter((l) => l.clockOutAt);
         const closed = closedLogs.length > 0;
 
-        // Arrival = earliest clock-in of the day (drives lateness + in-location),
+        // Arrival = earliest clock-in of the day (drives the in-location check),
         // even if that first session is still open.
         const firstIn = dayLogs.slice().sort(
           (a, b) => new Date(a.clockInAt).getTime() - new Date(b.clockInAt).getTime(),
@@ -2220,14 +2258,44 @@ export async function registerRoutes(
         const existingReason =
           (closedLogs.map((l) => l.deductionReason).find(Boolean) as string) || "";
 
-        let minutesLate = 0;
-        if (expectedMin != null) {
-          const sgtIn = new Date(new Date(firstIn.clockInAt).getTime() + 8 * 3600 * 1000);
-          const actualMin = sgtIn.getUTCHours() * 60 + sgtIn.getUTCMinutes();
-          minutesLate = Math.max(0, actualMin - expectedMin);
+        // ── Location check: clock-in near IKEA Alexandra OR the first job site ──
+        const inLat = firstIn.clockInLat != null ? parseFloat(firstIn.clockInLat) : null;
+        const inLng = firstIn.clockInLng != null ? parseFloat(firstIn.clockInLng) : null;
+        const firstJob = firstJobByDay[day] || null;
+        let firstJobGeo: { lat: number; lng: number } | null = null;
+        if (firstJob) {
+          const geo = await geocodeSgAddress(firstJob.address);
+          if (geo) firstJobGeo = { lat: geo.lat, lng: geo.lng };
         }
-        const late = minutesLate > GRACE;
-        const suggestedMinutes = late ? Math.min(minutesLate, grossMinutes) : 0;
+        let locationOk: boolean | null = null;   // null = can't tell
+        let matched: "ikea" | "firstJob" | null = null;
+        let distIkeaM: number | null = null;
+        let distJobM: number | null = null;
+        let needsManualReview = false;
+        if (inLat != null && inLng != null && isFinite(inLat) && isFinite(inLng)) {
+          distIkeaM = Math.round(haversineM(inLat, inLng, IKEA_ALEXANDRA.lat, IKEA_ALEXANDRA.lng));
+          if (firstJobGeo) distJobM = Math.round(haversineM(inLat, inLng, firstJobGeo.lat, firstJobGeo.lng));
+          const okIkea = distIkeaM <= MATCH_RADIUS_M;
+          const okJob = distJobM != null && distJobM <= MATCH_RADIUS_M;
+          if (okIkea || okJob) {
+            locationOk = true;
+            matched = okIkea ? "ikea" : "firstJob";
+          } else if (firstJob && !firstJobGeo) {
+            // There IS a scheduled job but its address couldn't be geocoded, so we
+            // can't confirm the first-job site — leave it for the admin to judge
+            // rather than false-flagging a correct clock-in as off-site.
+            locationOk = null;
+            needsManualReview = true;
+          } else {
+            locationOk = false;
+          }
+        }
+        const offSite = locationOk === false;
+        const suggestedReason = offSite
+          ? (firstJob
+              ? `Clock-in not at IKEA Alexandra warehouse or first job site (${firstJob.referenceNo})`
+              : "Clock-in not at IKEA Alexandra warehouse")
+          : "";
 
         return {
           date: day,
@@ -2239,15 +2307,19 @@ export async function registerRoutes(
           clockOutLat: lastClosed?.clockOutLat ?? null, clockOutLng: lastClosed?.clockOutLng ?? null,
           rawMinutes: dayRawMins, breakMinutes: dayBreakMins, grossMinutes,
           existingDeduction, existingReason,
-          minutesLate, late, suggestedMinutes,
+          locationOk, matched, offSite, needsManualReview,
+          firstJobRef: firstJob?.referenceNo ?? null,
+          firstJobAddress: firstJob?.address ?? null,
+          firstJobLocated: !!firstJobGeo,
+          distIkeaM, distJobM, suggestedReason,
         };
-      });
+      }));
 
       res.json({
         userId,
         name: staffMember.name,
-        expectedStartTime: expected || null,
-        graceMinutes: GRACE,
+        ikeaLabel: IKEA_ALEXANDRA.label,
+        matchRadiusM: MATCH_RADIUS_M,
         days,
       });
     } catch (e: any) { res.status(400).json({ message: e.message }); }
