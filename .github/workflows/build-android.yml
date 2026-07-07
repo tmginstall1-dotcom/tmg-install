@@ -32,6 +32,10 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Point package-lock at public npm registry (Replit proxy is internal-only)
+        run: |
+          sed -i 's#http://package-firewall.replit.local/npm/#https://registry.npmjs.org/#g' package-lock.json
+
       - name: Install npm dependencies
         run: npm ci
 
