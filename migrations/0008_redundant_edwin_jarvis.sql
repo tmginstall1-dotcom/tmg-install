@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "can_clock_in_at_van_pickup" boolean DEFAULT false;

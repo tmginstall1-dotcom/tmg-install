@@ -507,6 +507,7 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  emergencyName: staff.emergencyName || "",
  emergencyPhone: staff.emergencyPhone || "",
  mustClockInAtFirstJob: !!staff.mustClockInAtFirstJob,
+ canClockInAtVanPickup: !!staff.canClockInAtVanPickup,
  });
 
  const set = (key: keyof typeof form) => (e: any) => setForm(f => ({ ...f, [key]: e.target.value }));
@@ -523,6 +524,7 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  emergencyName: form.emergencyName || null,
  emergencyPhone: form.emergencyPhone || null,
  mustClockInAtFirstJob: form.mustClockInAtFirstJob,
+ canClockInAtVanPickup: form.canClockInAtVanPickup,
  };
  if (form.password) payload.password = form.password;
  return apiRequest("PATCH", `/api/admin/staff/${staff.id}`, payload);
@@ -596,6 +598,19 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  <span className="font-medium text-zinc-900">Must clock in at first job site</span>
  <br />
  For installers who ride out with a driver — clock-in must be at the day's first job, not the van pickup / IKEA warehouse. Van-to-site travel time is not payable, so other clock-ins get flagged in the monthly clock-in review.
+ </span>
+ </label>
+ <label className="flex items-start gap-3 mt-1 cursor-pointer" data-testid={`toggle-driver-${staff.id}`}>
+ <input
+ type="checkbox"
+ checked={form.canClockInAtVanPickup}
+ onChange={(e) => setForm(f => ({ ...f, canClockInAtVanPickup: e.target.checked }))}
+ className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]"
+ />
+ <span className="text-xs text-zinc-700 leading-snug">
+ <span className="font-medium text-zinc-900">Driver — can clock in at van pickup point</span>
+ <br />
+ For the driver who collects the van (near Woodlands St 31) — clock-in is accepted at the van pickup point, IKEA Alexandra, or the first job site. Any other location is flagged in the monthly clock-in review.
  </span>
  </label>
 
@@ -1492,7 +1507,11 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
     if (!data?.days) return;
     const init: Record<string, { minutes: number; reason: string }> = {};
     for (const d of data.days) {
-      const minutes = d.existingDeduction > 0 ? d.existingDeduction : 0;
+      // For flagged (off-site) days, pre-fill the GPS-estimated non-payable travel
+      // time as a suggested deduction the admin can adjust; otherwise leave at 0.
+      const minutes = d.existingDeduction > 0
+        ? d.existingDeduction
+        : (d.offSite ? (d.suggestedMinutes || 0) : 0);
       const reason = d.existingReason || d.suggestedReason || "";
       init[d.date] = { minutes, reason };
     }
@@ -1557,6 +1576,8 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
         <div className="px-5 py-2 bg-zinc-50 border-b border-zinc-100 text-xs text-zinc-600 shrink-0">
           {data?.firstJobOnly ? (
             <>This installer must clock in at the day's <strong>first job site</strong> (not the van pickup / {data?.ikeaLabel || "IKEA Alexandra"} warehouse) — van-to-site travel time is not payable. Clock-ins elsewhere are flagged for review.</>
+          ) : data?.isDriver ? (
+            <>This driver may clock in at the <strong>{data?.vanLabel || "van pickup point"}</strong>, <strong>{data?.ikeaLabel || "IKEA Alexandra"}</strong>, or the day's <strong>first job site</strong>. Any other location is flagged for review.</>
           ) : (
             <>Installers must clock in at <strong>{data?.ikeaLabel || "IKEA Alexandra warehouse"}</strong> or the day's <strong>first job site</strong>. Off-site clock-ins are flagged for review.</>
           )}
@@ -1588,6 +1609,7 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
                         {d.offSite && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white" data-testid={`badge-offsite-${d.date}`}>OFF-SITE</span>}
                         {d.matched === "ikea" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">AT IKEA</span>}
                         {d.matched === "firstJob" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">AT FIRST JOB</span>}
+                        {d.matched === "vanPickup" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">AT VAN</span>}
                         {d.needsManualReview && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700" data-testid={`badge-check-${d.date}`}>CHECK</span>}
                         {d.locationOk === null && !d.needsManualReview && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">NO GPS</span>}
                       </div>
@@ -1610,18 +1632,30 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
                       {d.clockOutLat && d.clockOutLng && <GpsLocationPill lat={d.clockOutLat} lng={d.clockOutLng} label="Out" color="red" />}
                     </div>
 
-                    {/* expected clock-in place + distances */}
+                    {/* expected clock-in place + where they actually clocked in + distances */}
                     <div className="text-[11px] text-zinc-400 mb-2">
-                      {data?.firstJobOnly
-                        ? (d.firstJobRef
-                            ? <>Expected at first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
-                            : <>Expected at first job <span className="text-zinc-400">(no scheduled job found for this day)</span></>)
-                        : (d.firstJobRef
-                            ? <>Expected at IKEA Alexandra or first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
-                            : <>Expected at IKEA Alexandra <span className="text-zinc-400">(no scheduled job found for this day)</span></>)}
+                      {(() => {
+                        const anchor = data?.firstJobOnly
+                          ? "first job"
+                          : data?.isDriver
+                            ? "van pickup, IKEA Alexandra, or first job"
+                            : "IKEA Alexandra or first job";
+                        const noJobAnchor = data?.firstJobOnly
+                          ? "first job"
+                          : data?.isDriver
+                            ? "van pickup or IKEA Alexandra"
+                            : "IKEA Alexandra";
+                        return d.firstJobRef
+                          ? <>Expected at {anchor} <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
+                          : <>Expected at {noJobAnchor} <span className="text-zinc-400">(no scheduled job found for this day)</span></>;
+                      })()}
+                      {d.clockInPlace && (
+                        <span className="text-zinc-500"> · clocked in at <span className="font-medium text-zinc-600">{d.clockInPlace}</span></span>
+                      )}
                       {d.offSite && (
                         <span className="text-red-500">
-                          {" · "}clocked in {d.distJobM != null ? `~${d.distJobM}m from job` : ""}{d.distJobM != null ? ", " : ""}~{d.distIkeaM}m from IKEA
+                          {" · "}{d.distJobM != null ? `~${d.distJobM}m from job, ` : ""}~{d.distIkeaM}m from IKEA{data?.isDriver && d.distVanM != null ? `, ~${d.distVanM}m from van` : ""}
+                          {d.suggestedMinutes > 0 ? ` · ~${fmt(d.suggestedMinutes)} travel to deduct` : ""}
                         </span>
                       )}
                     </div>

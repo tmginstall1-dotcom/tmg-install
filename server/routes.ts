@@ -1829,6 +1829,7 @@ export async function registerRoutes(
         emergencyName: z.string().optional().nullable(),
         emergencyPhone: z.string().optional().nullable(),
         mustClockInAtFirstJob: z.boolean().optional(),
+        canClockInAtVanPickup: z.boolean().optional(),
       }).parse(req.body);
       // Check username uniqueness (excluding current user)
       if (data.username) {
@@ -2171,6 +2172,8 @@ export async function registerRoutes(
       if (!staffMember) return res.status(404).json({ message: "Staff not found" });
       // Special installers must clock in at the first job site only (not IKEA/van).
       const firstJobOnly = !!staffMember.mustClockInAtFirstJob;
+      // Drivers may also clock in at the van pickup point (plus IKEA / first job).
+      const isDriver = !!staffMember.canClockInAtVanPickup && !firstJobOnly;
 
       // SGT (UTC+8) day window so days near midnight land on the right date.
       const from = new Date(`${start}T00:00:00+08:00`);
@@ -2198,13 +2201,46 @@ export async function registerRoutes(
       // is what gets flagged. We check the clock-in GPS against both places and
       // pre-fill a ready reason for off-site days; the admin still sets the amount.
       const IKEA_ALEXANDRA = { lat: 1.2894, lng: 103.8047, label: "IKEA Alexandra warehouse" };
+      // Company van pickup point (drivers collect the van here) — "near Woodlands St 31".
+      const VAN_PICKUP = { lat: 1.43047, lng: 103.77494, label: "Woodlands St 31 van pickup" };
       const MATCH_RADIUS_M = 300;
+      const VAN_MATCH_RADIUS_M = 500;
       const haversineM = (la1: number, ln1: number, la2: number, ln2: number) => {
         const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
         const dLat = toRad(la2 - la1), dLng = toRad(ln2 - ln1);
         const x = Math.sin(dLat / 2) ** 2 +
           Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLng / 2) ** 2;
         return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+      };
+      // Non-payable travel time for a flagged day: minutes from clock-in until the
+      // staff member reaches their first real work stop clearly away (>250 m) from
+      // the clock-in spot, derived from their own GPS track. null when unknown.
+      const travelMinutesFromClockIn = async (
+        uid: number, clockInAt: any, clockOutAt: any, cLat: number | null, cLng: number | null,
+      ): Promise<number | null> => {
+        try {
+          const f = new Date(clockInAt);
+          const t = clockOutAt ? new Date(clockOutAt) : new Date(f.getTime() + 14 * 3600 * 1000);
+          const points = await storage.getGpsTrackPoints(uid, f, t);
+          const norm = points
+            .map((p: any) => ({
+              lat: typeof p.lat === "string" ? parseFloat(p.lat) : p.lat,
+              lng: typeof p.lng === "string" ? parseFloat(p.lng) : p.lng,
+              recordedAt: new Date(p.recordedAt as any),
+            }))
+            .filter((p: any) => isFinite(p.lat) && isFinite(p.lng));
+          if (norm.length < 2) return null;
+          const stops = computeGpsStops(norm, { radiusMeters: 120, minDurationMin: 8 });
+          if (!stops.length) return null;
+          let firstStop: (typeof stops)[number] | null = null;
+          for (const s of stops) {
+            if (cLat != null && cLng != null && isFinite(cLat) && isFinite(cLng)) {
+              if (haversineM(cLat, cLng, s.lat, s.lng) > 250) { firstStop = s; break; }
+            } else { firstStop = s; break; }
+          }
+          if (!firstStop) return null;
+          return Math.max(0, Math.round((firstStop.startAt.getTime() - f.getTime()) / 60000));
+        } catch { return null; }
       };
       const firstSiteAddress = (q: any): string | null => {
         const stops = Array.isArray(q.stops) ? q.stops : [];
@@ -2278,15 +2314,18 @@ export async function registerRoutes(
           if (geo) firstJobGeo = { lat: geo.lat, lng: geo.lng };
         }
         let locationOk: boolean | null = null;   // null = can't tell
-        let matched: "ikea" | "firstJob" | null = null;
+        let matched: "ikea" | "firstJob" | "vanPickup" | null = null;
         let distIkeaM: number | null = null;
         let distJobM: number | null = null;
+        let distVanM: number | null = null;
         let needsManualReview = false;
         if (inLat != null && inLng != null && isFinite(inLat) && isFinite(inLng)) {
           distIkeaM = Math.round(haversineM(inLat, inLng, IKEA_ALEXANDRA.lat, IKEA_ALEXANDRA.lng));
+          distVanM = Math.round(haversineM(inLat, inLng, VAN_PICKUP.lat, VAN_PICKUP.lng));
           if (firstJobGeo) distJobM = Math.round(haversineM(inLat, inLng, firstJobGeo.lat, firstJobGeo.lng));
           const okIkea = distIkeaM <= MATCH_RADIUS_M;
           const okJob = distJobM != null && distJobM <= MATCH_RADIUS_M;
+          const okVan = distVanM <= VAN_MATCH_RADIUS_M;
           if (firstJobOnly) {
             // Only the first job site is acceptable; IKEA/van pickup is flagged.
             if (okJob) {
@@ -2300,26 +2339,51 @@ export async function registerRoutes(
             } else {
               locationOk = false;
             }
-          } else if (okIkea || okJob) {
-            locationOk = true;
-            matched = okIkea ? "ikea" : "firstJob";
-          } else if (firstJob && !firstJobGeo) {
-            // There IS a scheduled job but its address couldn't be geocoded, so we
-            // can't confirm the first-job site — leave it for the admin to judge
-            // rather than false-flagging a correct clock-in as off-site.
-            locationOk = null;
-            needsManualReview = true;
           } else {
-            locationOk = false;
+            // Default installer: IKEA or first job. Driver: also the van pickup point.
+            const okAnchor = okIkea || (isDriver && okVan);
+            if (okAnchor || okJob) {
+              locationOk = true;
+              matched = (isDriver && okVan) ? "vanPickup" : okIkea ? "ikea" : "firstJob";
+            } else if (firstJob && !firstJobGeo) {
+              // There IS a scheduled job but its address couldn't be geocoded, so we
+              // can't confirm the first-job site — leave it for the admin to judge
+              // rather than false-flagging a correct clock-in as off-site.
+              locationOk = null;
+              needsManualReview = true;
+            } else {
+              locationOk = false;
+            }
           }
         }
         const offSite = locationOk === false;
+
+        // For flagged days, resolve WHERE they clocked in (reverse geocode) and how
+        // much non-payable travel time to suggest deducting (from their GPS track).
+        let clockInPlace: string | null = null;
+        let suggestedMinutes = 0;
+        if (offSite && inLat != null && inLng != null && isFinite(inLat) && isFinite(inLng)) {
+          try { clockInPlace = await reverseGeocodeSg(inLat, inLng); } catch { clockInPlace = null; }
+          const tm = await travelMinutesFromClockIn(
+            userId, firstIn.clockInAt, lastClosed?.clockOutAt ?? null, inLat, inLng,
+          );
+          if (tm != null) suggestedMinutes = Math.min(tm, grossMinutes);
+        }
+
+        const placeLabel = clockInPlace || "an off-site location";
+        const durationNote = suggestedMinutes > 0
+          ? ` — ~${suggestedMinutes} min van/travel time not payable`
+          : "";
         const suggestedReason = offSite
           ? (firstJobOnly
-              ? `Clock-in not at first job site (${firstJob?.referenceNo ?? "no job"}) — van pickup/warehouse; van→site travel time not payable`
-              : firstJob
-                ? `Clock-in not at IKEA Alexandra warehouse or first job site (${firstJob.referenceNo})`
-                : "Clock-in not at IKEA Alexandra warehouse")
+              ? `Clocked in at ${placeLabel}, not at first job site${firstJob ? ` (${firstJob.referenceNo})` : ""}${durationNote}`
+              : isDriver
+                ? (firstJob
+                    ? `Clocked in at ${placeLabel}, not at van pickup, IKEA Alexandra, or first job site (${firstJob.referenceNo})${durationNote}`
+                    : `Clocked in at ${placeLabel}, not at van pickup or IKEA Alexandra${durationNote}`)
+                : firstJob
+                  ? `Clocked in at ${placeLabel}, not at IKEA Alexandra or first job site (${firstJob.referenceNo})${durationNote}`
+                  : `Clocked in at ${placeLabel}, not at IKEA Alexandra${durationNote}`)
           : "";
 
         return {
@@ -2336,7 +2400,7 @@ export async function registerRoutes(
           firstJobRef: firstJob?.referenceNo ?? null,
           firstJobAddress: firstJob?.address ?? null,
           firstJobLocated: !!firstJobGeo,
-          distIkeaM, distJobM, suggestedReason,
+          distIkeaM, distJobM, distVanM, clockInPlace, suggestedMinutes, suggestedReason,
         };
       }));
 
@@ -2344,8 +2408,11 @@ export async function registerRoutes(
         userId,
         name: staffMember.name,
         ikeaLabel: IKEA_ALEXANDRA.label,
+        vanLabel: VAN_PICKUP.label,
         matchRadiusM: MATCH_RADIUS_M,
+        vanRadiusM: VAN_MATCH_RADIUS_M,
         firstJobOnly,
+        isDriver,
         days,
       });
     } catch (e: any) { res.status(400).json({ message: e.message }); }

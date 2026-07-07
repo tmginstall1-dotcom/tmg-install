@@ -57,6 +57,13 @@
       "when": 1783404289283,
       "tag": "0007_overconfident_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783405775662,
+      "tag": "0008_redundant_edwin_jarvis",
+      "breakpoints": true
     }
   ]
 }

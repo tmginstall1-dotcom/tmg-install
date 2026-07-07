@@ -62,6 +62,10 @@ export const users = pgTable("users", {
   // not company-payable. When true, the monthly clock-in review flags any clock-in
   // that is not at the day's first job (including IKEA) for admin review.
   mustClockInAtFirstJob: boolean("must_clock_in_at_first_job").default(false),
+  // Driver: may clock in at the van pickup point (in addition to IKEA Alexandra or
+  // the first job site). When true, the monthly clock-in review accepts a clock-in
+  // near the van pickup point; any other location is still flagged.
+  canClockInAtVanPickup: boolean("can_clock_in_at_van_pickup").default(false),
 });
 
 // Attendance Amendment Requests
