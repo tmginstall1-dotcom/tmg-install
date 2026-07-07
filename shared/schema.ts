@@ -57,6 +57,11 @@ export const users = pgTable("users", {
   fcmToken: text("fcm_token"),
   // Optional clock-in time restriction — "HH:MM" in SGT (e.g. "07:25"). If set, staff may only clock in within ±10 min of this time.
   clockInTime: text("clock_in_time"),
+  // Installer who rides out with a driver: he must clock in AT the first job site,
+  // not at the van pickup point / IKEA warehouse — the van→site driving time is
+  // not company-payable. When true, the monthly clock-in review flags any clock-in
+  // that is not at the day's first job (including IKEA) for admin review.
+  mustClockInAtFirstJob: boolean("must_clock_in_at_first_job").default(false),
 });
 
 // Attendance Amendment Requests

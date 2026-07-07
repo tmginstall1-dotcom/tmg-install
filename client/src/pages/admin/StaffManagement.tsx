@@ -506,6 +506,7 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  startDate: staff.startDate || "",
  emergencyName: staff.emergencyName || "",
  emergencyPhone: staff.emergencyPhone || "",
+ mustClockInAtFirstJob: !!staff.mustClockInAtFirstJob,
  });
 
  const set = (key: keyof typeof form) => (e: any) => setForm(f => ({ ...f, [key]: e.target.value }));
@@ -521,6 +522,7 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  startDate: form.startDate || null,
  emergencyName: form.emergencyName || null,
  emergencyPhone: form.emergencyPhone || null,
+ mustClockInAtFirstJob: form.mustClockInAtFirstJob,
  };
  if (form.password) payload.password = form.password;
  return apiRequest("PATCH", `/api/admin/staff/${staff.id}`, payload);
@@ -583,6 +585,19 @@ function EditStaffForm({ staff, onClose }: { staff: any; onClose: () => void }) 
  {field("NRIC / FIN", "nricFin", { placeholder: "S1234567A" })}
  {field("Start Date", "startDate", { type: "date" })}
  </div>
+ <label className="flex items-start gap-3 mt-1 cursor-pointer" data-testid={`toggle-firstjob-${staff.id}`}>
+ <input
+ type="checkbox"
+ checked={form.mustClockInAtFirstJob}
+ onChange={(e) => setForm(f => ({ ...f, mustClockInAtFirstJob: e.target.checked }))}
+ className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-[#0A0A0A] focus:ring-[#0A0A0A]"
+ />
+ <span className="text-xs text-zinc-700 leading-snug">
+ <span className="font-medium text-zinc-900">Must clock in at first job site</span>
+ <br />
+ For installers who ride out with a driver — clock-in must be at the day's first job, not the van pickup / IKEA warehouse. Van-to-site travel time is not payable, so other clock-ins get flagged in the monthly clock-in review.
+ </span>
+ </label>
 
  {/* Emergency */}
  {sectionLabel("Emergency Contact")}
@@ -1540,7 +1555,11 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
 
         {/* Summary line */}
         <div className="px-5 py-2 bg-zinc-50 border-b border-zinc-100 text-xs text-zinc-600 shrink-0">
-          Installers must clock in at <strong>{data?.ikeaLabel || "IKEA Alexandra warehouse"}</strong> or the day's <strong>first job site</strong>. Off-site clock-ins are flagged for review.
+          {data?.firstJobOnly ? (
+            <>This installer must clock in at the day's <strong>first job site</strong> (not the van pickup / {data?.ikeaLabel || "IKEA Alexandra"} warehouse) — van-to-site travel time is not payable. Clock-ins elsewhere are flagged for review.</>
+          ) : (
+            <>Installers must clock in at <strong>{data?.ikeaLabel || "IKEA Alexandra warehouse"}</strong> or the day's <strong>first job site</strong>. Off-site clock-ins are flagged for review.</>
+          )}
           {flaggedCount > 0 && <span className="ml-1 text-red-600 font-semibold">· {flaggedCount} off-site day(s)</span>}
         </div>
 
@@ -1593,12 +1612,16 @@ function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onC
 
                     {/* expected clock-in place + distances */}
                     <div className="text-[11px] text-zinc-400 mb-2">
-                      {d.firstJobRef
-                        ? <>Expected at IKEA Alexandra or first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
-                        : <>Expected at IKEA Alexandra <span className="text-zinc-400">(no scheduled job found for this day)</span></>}
+                      {data?.firstJobOnly
+                        ? (d.firstJobRef
+                            ? <>Expected at first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
+                            : <>Expected at first job <span className="text-zinc-400">(no scheduled job found for this day)</span></>)
+                        : (d.firstJobRef
+                            ? <>Expected at IKEA Alexandra or first job <span className="text-zinc-500 font-medium">{d.firstJobRef}</span>{d.firstJobAddress ? ` · ${d.firstJobAddress}` : ""}{!d.firstJobLocated && <span className="text-amber-600"> (job address couldn't be located)</span>}</>
+                            : <>Expected at IKEA Alexandra <span className="text-zinc-400">(no scheduled job found for this day)</span></>)}
                       {d.offSite && (
                         <span className="text-red-500">
-                          {" · "}clocked in {d.distJobM != null ? `~${d.distJobM}m from job, ` : ""}~{d.distIkeaM}m from IKEA
+                          {" · "}clocked in {d.distJobM != null ? `~${d.distJobM}m from job` : ""}{d.distJobM != null ? ", " : ""}~{d.distIkeaM}m from IKEA
                         </span>
                       )}
                     </div>

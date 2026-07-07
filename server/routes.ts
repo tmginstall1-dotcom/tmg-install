@@ -1828,6 +1828,7 @@ export async function registerRoutes(
         startDate: z.string().optional().nullable(),
         emergencyName: z.string().optional().nullable(),
         emergencyPhone: z.string().optional().nullable(),
+        mustClockInAtFirstJob: z.boolean().optional(),
       }).parse(req.body);
       // Check username uniqueness (excluding current user)
       if (data.username) {
@@ -2150,9 +2151,11 @@ export async function registerRoutes(
 
   // Monthly clock-in review — one row per SGT working day for a staff member:
   // clock-in/out time + location, worked hours, any existing deduction, and
-  // WHERE they clocked in vs company rule (IKEA Alexandra warehouse OR the day's
-  // first job site). Powers the "Review Clock-Ins" screen before generating a
-  // payslip. Read-only.
+  // WHERE they clocked in vs company rule. Default rule: IKEA Alexandra warehouse
+  // OR the day's first job site. Per-installer override (users.mustClockInAtFirstJob):
+  // first job site ONLY — van pickup/warehouse clock-ins are flagged because the
+  // van→site travel time is not payable. Powers the "Review Clock-Ins" screen
+  // before generating a payslip. Read-only.
   app.get("/api/admin/attendance/review", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);
@@ -2166,6 +2169,8 @@ export async function registerRoutes(
       }
       const staffMember = await storage.getUserById(userId);
       if (!staffMember) return res.status(404).json({ message: "Staff not found" });
+      // Special installers must clock in at the first job site only (not IKEA/van).
+      const firstJobOnly = !!staffMember.mustClockInAtFirstJob;
 
       // SGT (UTC+8) day window so days near midnight land on the right date.
       const from = new Date(`${start}T00:00:00+08:00`);
@@ -2258,7 +2263,12 @@ export async function registerRoutes(
         const existingReason =
           (closedLogs.map((l) => l.deductionReason).find(Boolean) as string) || "";
 
-        // ── Location check: clock-in near IKEA Alexandra OR the first job site ──
+        // ── Location check ──
+        // Default installer rule: clock-in near IKEA Alexandra OR the first job site.
+        // Special installers (mustClockInAtFirstJob, e.g. those who ride out with a
+        // driver) must clock in AT the first job site only — a clock-in at the van
+        // pickup point / IKEA warehouse adds unpaid van→site driving time, so it is
+        // flagged for admin review instead of being accepted.
         const inLat = firstIn.clockInLat != null ? parseFloat(firstIn.clockInLat) : null;
         const inLng = firstIn.clockInLng != null ? parseFloat(firstIn.clockInLng) : null;
         const firstJob = firstJobByDay[day] || null;
@@ -2277,7 +2287,20 @@ export async function registerRoutes(
           if (firstJobGeo) distJobM = Math.round(haversineM(inLat, inLng, firstJobGeo.lat, firstJobGeo.lng));
           const okIkea = distIkeaM <= MATCH_RADIUS_M;
           const okJob = distJobM != null && distJobM <= MATCH_RADIUS_M;
-          if (okIkea || okJob) {
+          if (firstJobOnly) {
+            // Only the first job site is acceptable; IKEA/van pickup is flagged.
+            if (okJob) {
+              locationOk = true;
+              matched = "firstJob";
+            } else if (!firstJob || !firstJobGeo) {
+              // No scheduled first job, or its address couldn't be geocoded — we
+              // can't confirm the required site, so leave it for the admin.
+              locationOk = null;
+              needsManualReview = true;
+            } else {
+              locationOk = false;
+            }
+          } else if (okIkea || okJob) {
             locationOk = true;
             matched = okIkea ? "ikea" : "firstJob";
           } else if (firstJob && !firstJobGeo) {
@@ -2292,9 +2315,11 @@ export async function registerRoutes(
         }
         const offSite = locationOk === false;
         const suggestedReason = offSite
-          ? (firstJob
-              ? `Clock-in not at IKEA Alexandra warehouse or first job site (${firstJob.referenceNo})`
-              : "Clock-in not at IKEA Alexandra warehouse")
+          ? (firstJobOnly
+              ? `Clock-in not at first job site (${firstJob?.referenceNo ?? "no job"}) — van pickup/warehouse; van→site travel time not payable`
+              : firstJob
+                ? `Clock-in not at IKEA Alexandra warehouse or first job site (${firstJob.referenceNo})`
+                : "Clock-in not at IKEA Alexandra warehouse")
           : "";
 
         return {
@@ -2320,6 +2345,7 @@ export async function registerRoutes(
         name: staffMember.name,
         ikeaLabel: IKEA_ALEXANDRA.label,
         matchRadiusM: MATCH_RADIUS_M,
+        firstJobOnly,
         days,
       });
     } catch (e: any) { res.status(400).json({ message: e.message }); }

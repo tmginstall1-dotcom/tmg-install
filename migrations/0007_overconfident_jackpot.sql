@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "must_clock_in_at_first_job" boolean DEFAULT false;

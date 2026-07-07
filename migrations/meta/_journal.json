@@ -50,6 +50,13 @@
       "when": 1783401082957,
       "tag": "0006_narrow_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783404289283,
+      "tag": "0007_overconfident_jackpot",
+      "breakpoints": true
     }
   ]
 }

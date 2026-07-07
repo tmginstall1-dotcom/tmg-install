@@ -13,6 +13,11 @@ The rule to check for installers: they must clock in either at the IKEA Alexandr
 **Why:** location rules depend on daily context, but "IKEA OR first job site" cleanly covers the installer loading-day-vs-not case, so it can be auto-checked as advisory.
 **Edge case:** if a scheduled job exists but its address can't be geocoded, DON'T false-flag off-site — mark needsManualReview (CHECK badge) and let the admin judge. Days with no clock-in GPS → locationOk null (NO GPS).
 
+## Per-installer override: first job site ONLY
+`users.mustClockInAtFirstJob` (boolean) makes an installer stricter than the default: only the first-job geofence passes — IKEA/van pickup is flagged off-site (reason cites unpaid van→site travel time). Set per staff via the Edit Profile toggle (PATCH /api/admin/staff/:id). Review endpoint returns top-level `firstJobOnly`; the modal summary + per-row expected-location text branch on it. Same indeterminate rule applies (no first job / geocode fail → needsManualReview, not off-site).
+
+**Why:** installers who ride out with a driver must be paid from the first job, not from the van depot; the general "IKEA OR first job" rule would wrongly pass their van clock-in. It's per-person because most installers can legitimately use IKEA.
+
 ## Must mirror bulkDeductAttendance day semantics
 The review endpoint (`GET /api/admin/attendance/review`) and apply (`POST /api/admin/attendance/apply-review`) MUST match `storage.bulkDeductAttendance` or the review preview diverges from what actually gets saved:
 - Group by SGT day (UTC+8). Deduction anchor = latest CLOSED log; day worked minutes/cap = SUM across ALL closed logs (split shifts), NOT the primary log alone.
