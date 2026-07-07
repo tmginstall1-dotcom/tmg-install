@@ -1445,6 +1445,198 @@ function BulkDeductModal({ staff, defaultUserId, defaultFrom, defaultTo, queryKe
  );
 }
 
+// ─── Monthly Clock-In Review (payslip prep) ──────────────────────────────────────
+
+function ReviewClockInsModal({ staff, defaultUserId, periodStart, periodEnd, onClose, onGenerate }: {
+  staff: any[]; defaultUserId?: string; periodStart: string; periodEnd: string;
+  onClose: () => void; onGenerate: (userId: string, start: string, end: string) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const staffOnly = staff.filter((s: any) => s.role === "staff");
+  const [userId, setUserId] = useState<string>(defaultUserId || String(staffOnly[0]?.id ?? ""));
+  const [start, setStart] = useState(periodStart);
+  const [end, setEnd] = useState(periodEnd);
+
+  const { data, isLoading, isFetching } = useQuery<any>({
+    queryKey: ["/api/admin/attendance/review", userId, start, end],
+    enabled: !!userId,
+    queryFn: async () => {
+      const res = await fetch(
+        `${API_BASE}/api/admin/attendance/review?userId=${userId}&start=${start}&end=${end}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error((await res.json()).message || "Failed to load review");
+      return res.json();
+    },
+  });
+
+  // Editable per-day deduction (minutes + reason), seeded from existing/suggested.
+  const [edits, setEdits] = useState<Record<string, { minutes: number; reason: string }>>({});
+  useEffect(() => {
+    if (!data?.days) return;
+    const init: Record<string, { minutes: number; reason: string }> = {};
+    for (const d of data.days) {
+      const minutes = d.existingDeduction > 0 ? d.existingDeduction : d.suggestedMinutes;
+      const reason = d.existingReason
+        || (d.late && d.suggestedMinutes > 0 && data.expectedStartTime
+              ? `Late clock-in: ${fmt(d.minutesLate)} past ${data.expectedStartTime}`
+              : "");
+      init[d.date] = { minutes, reason };
+    }
+    setEdits(init);
+  }, [data]);
+
+  const applyMut = useMutation({
+    mutationFn: (p: { date: string; minutes: number; reason: string }) =>
+      apiRequest("POST", "/api/admin/attendance/apply-review", {
+        userId: parseInt(userId), date: p.date, minutes: p.minutes,
+        reason: p.reason.trim() || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/attendance/review"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/attendance"] });
+      toast({ title: "Saved" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const days: any[] = data?.days || [];
+  const flaggedCount = days.filter((d) => d.late).length;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-4" data-testid="modal-review-clockins">
+      <div className="bg-white rounded-none max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#0A0A0A] flex items-center justify-center">
+              <Clock className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900">Review Clock-Ins</p>
+              <p className="text-xs text-zinc-500">Check each day's time & location, apply deductions, then generate the payslip</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Controls */}
+        <div className="px-5 py-3 border-b border-zinc-100 grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Staff Member</label>
+            <select value={userId} onChange={e => setUserId(e.target.value)}
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white" data-testid="select-review-staff">
+              {staffOnly.map((s: any) => <option key={s.id} value={s.id}>{s.name} (@{s.username})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">From</label>
+            <input type="date" value={start} onChange={e => setStart(e.target.value)}
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white" data-testid="input-review-from" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">To</label>
+            <input type="date" value={end} onChange={e => setEnd(e.target.value)}
+              className="h-9 w-full px-3 border border-zinc-300 rounded-lg text-sm bg-white" data-testid="input-review-to" />
+          </div>
+        </div>
+
+        {/* Summary line */}
+        <div className="px-5 py-2 bg-zinc-50 border-b border-zinc-100 text-xs text-zinc-600 shrink-0">
+          {data?.expectedStartTime
+            ? <>Expected start time: <strong>{data.expectedStartTime}</strong> (SGT). Clock-ins more than {data?.graceMinutes ?? 10} min late are flagged.</>
+            : <>No start time set for this staff — late flagging is off. Set one in the staff profile to auto-flag late clock-ins.</>}
+          {flaggedCount > 0 && <span className="ml-1 text-red-600 font-semibold">· {flaggedCount} late day(s)</span>}
+        </div>
+
+        {/* Days table */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-zinc-400" /></div>
+          ) : days.length === 0 ? (
+            <div className="text-center py-12 text-sm text-zinc-400">No clock-in records for this staff in this period.</div>
+          ) : (
+            <div className="space-y-3">
+              {days.map((d) => {
+                const e = edits[d.date] || { minutes: 0, reason: "" };
+                const changedFromServer = e.minutes !== d.existingDeduction || (e.reason.trim() !== (d.existingReason || "").trim());
+                return (
+                  <div key={d.date} className={`border rounded-lg p-3 ${d.late ? "border-red-200 bg-red-50/40" : "border-zinc-200"}`} data-testid={`review-day-${d.date}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-zinc-900">{format(parseISO(d.date), "EEE d MMM")}</span>
+                        {!d.closed && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">NO CLOCK-OUT</span>}
+                        {d.late && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white" data-testid={`badge-late-${d.date}`}>LATE {fmt(d.minutesLate)}</span>}
+                      </div>
+                      <span className="text-xs text-zinc-500">Worked {fmt(d.grossMinutes)}{d.breakMinutes > 0 ? ` · break ${fmt(d.breakMinutes)}` : ""}</span>
+                    </div>
+
+                    {/* time + location */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600 mb-2">
+                      <span className="inline-flex items-center gap-1">
+                        <LogIn className="w-3 h-3 text-emerald-500" />
+                        {format(new Date(d.clockInAt), "h:mm a")}
+                        {data?.expectedStartTime && <span className="text-zinc-400"> / exp {data.expectedStartTime}</span>}
+                      </span>
+                      {d.clockInLat && d.clockInLng && <GpsLocationPill lat={d.clockInLat} lng={d.clockInLng} label="In" color="green" />}
+                      {d.closed && (
+                        <span className="inline-flex items-center gap-1">
+                          <LogOut className="w-3 h-3 text-red-500" />
+                          {format(new Date(d.clockOutAt), "h:mm a")}
+                        </span>
+                      )}
+                      {d.clockOutLat && d.clockOutLng && <GpsLocationPill lat={d.clockOutLat} lng={d.clockOutLng} label="Out" color="red" />}
+                    </div>
+
+                    {/* deduction editor */}
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-zinc-500 mb-0.5">Deduct (min)</label>
+                        <input type="number" min={0} max={Math.max(0, d.grossMinutes)} value={e.minutes}
+                          disabled={!d.closed}
+                          onChange={ev => setEdits(s => ({ ...s, [d.date]: { ...e, minutes: Math.max(0, Math.min(d.grossMinutes || 1440, parseInt(ev.target.value) || 0)) } }))}
+                          className="h-9 w-24 px-2 border border-zinc-300 rounded-lg text-sm bg-white disabled:bg-zinc-100"
+                          data-testid={`input-deduct-${d.date}`} />
+                      </div>
+                      <div className="flex-1 min-w-[180px]">
+                        <label className="block text-[10px] font-semibold text-zinc-500 mb-0.5">Reason</label>
+                        <input type="text" value={e.reason} disabled={!d.closed}
+                          placeholder="e.g. Clocked in at van, not job site"
+                          onChange={ev => setEdits(s => ({ ...s, [d.date]: { ...e, reason: ev.target.value } }))}
+                          className="h-9 w-full px-2 border border-zinc-300 rounded-lg text-sm bg-white disabled:bg-zinc-100"
+                          data-testid={`input-reason-${d.date}`} />
+                      </div>
+                      <button
+                        onClick={() => applyMut.mutate({ date: d.date, minutes: e.minutes, reason: e.reason })}
+                        disabled={!d.closed || applyMut.isPending || (e.minutes > 0 && !e.reason.trim()) || !changedFromServer}
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-xs font-medium disabled:opacity-40"
+                        data-testid={`button-save-${d.date}`}>
+                        <Check className="w-3.5 h-3.5" /> Save
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 bg-zinc-50 border-t border-zinc-100 shrink-0">
+          <p className="text-[11px] text-zinc-400">Save each day's deduction before generating. Reasons appear on the payslip for record.</p>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="h-9 px-4 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 text-sm font-medium">Close</button>
+            <button onClick={() => onGenerate(userId, start, end)} disabled={!userId || isFetching}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium disabled:opacity-50"
+              data-testid="button-review-generate">
+              <FileText className="w-4 h-4" /> Generate Payslip
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Timesheets View ────────────────────────────────────────────────────────────
 
 function TimesheetsView() {
@@ -2332,6 +2524,7 @@ function PayslipsTab() {
  const { data: staff = [] } = useQuery<any[]>({ queryKey: ["/api/staff"] });
  const [filterUserId, setFilterUserId] = useState<string>("");
  const [showGenerate, setShowGenerate] = useState(false);
+ const [showReview, setShowReview] = useState(false);
  const [genForm, setGenForm] = useState({
  userId: "",
  periodStart: format(startOfMonth(today), "yyyy-MM-dd"),
@@ -2402,15 +2595,17 @@ function PayslipsTab() {
  });
 
  const generateMut = useMutation({
- mutationFn: () => apiRequest("POST", "/api/admin/payslips/generate", {
- userId: parseInt(genForm.userId),
- periodStart: genForm.periodStart,
- periodEnd: genForm.periodEnd,
- notes: genForm.notes || undefined,
+ mutationFn: (override?: { userId: string; periodStart: string; periodEnd: string }) =>
+ apiRequest("POST", "/api/admin/payslips/generate", {
+ userId: parseInt(override ? override.userId : genForm.userId),
+ periodStart: override ? override.periodStart : genForm.periodStart,
+ periodEnd: override ? override.periodEnd : genForm.periodEnd,
+ notes: override ? undefined : (genForm.notes || undefined),
  }),
  onSuccess: () => {
  qc.invalidateQueries({ queryKey: ["/api/admin/payslips"] });
  setShowGenerate(false);
+ setShowReview(false);
  toast({ title: "Payslip generated" });
  },
  onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -2429,6 +2624,11 @@ function PayslipsTab() {
  <option value="">All Staff</option>
  {staff.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
  </select>
+ <button onClick={() => setShowReview(true)}
+ className="inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-700 text-sm font-medium transition-colors"
+ data-testid="button-review-clockins">
+ <Clock className="w-4 h-4" /> Review Clock-Ins
+ </button>
  <button onClick={() => setShowGenerate(!showGenerate)}
  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-medium transition-colors"
  data-testid="button-generate-payslip">
@@ -2652,7 +2852,7 @@ function PayslipsTab() {
  placeholder="Notes (optional)" rows={2}
  className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm bg-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:border-[#0A0A0A] transition-colors resize-none" />
  <div className="flex gap-2">
- <button onClick={() => generateMut.mutate()} disabled={!genForm.userId || generateMut.isPending}
+ <button onClick={() => generateMut.mutate(undefined)} disabled={!genForm.userId || generateMut.isPending}
  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0A0A0A] hover:bg-black text-white text-sm font-medium transition-colors disabled:opacity-50"
  data-testid="button-confirm-generate">
  {generateMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : "Generate"}
@@ -2770,6 +2970,17 @@ function PayslipsTab() {
  payslip={printingPayslip}
  loans={allLoans.filter((l: any) => l.userId === printingPayslip.userId)}
  onClose={() => setPrintingPayslip(null)}
+ />
+ )}
+
+ {showReview && (
+ <ReviewClockInsModal
+ staff={staff}
+ defaultUserId={filterUserId || undefined}
+ periodStart={genForm.periodStart}
+ periodEnd={genForm.periodEnd}
+ onClose={() => setShowReview(false)}
+ onGenerate={(uid, s, e) => generateMut.mutate({ userId: uid, periodStart: s, periodEnd: e })}
  />
  )}
  </div>

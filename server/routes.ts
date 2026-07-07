@@ -2148,6 +2148,140 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  // Monthly clock-in review — one row per SGT working day for a staff member:
+  // clock-in/out time + location, worked hours, any existing deduction, and how
+  // late the clock-in was vs their set start time (users.clockInTime). Powers the
+  // "Review Clock-Ins" screen used before generating a payslip. Read-only.
+  app.get("/api/admin/attendance/review", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const userId = parseInt(String(req.query.userId || ""));
+      const start = String(req.query.start || "");
+      const end = String(req.query.end || "");
+      if (!userId || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+        return res.status(400).json({ message: "userId, start (YYYY-MM-DD) and end (YYYY-MM-DD) are required" });
+      }
+      const staffMember = await storage.getUserById(userId);
+      if (!staffMember) return res.status(404).json({ message: "Staff not found" });
+
+      // SGT (UTC+8) day window so days near midnight land on the right date.
+      const from = new Date(`${start}T00:00:00+08:00`);
+      const to = new Date(`${end}T23:59:59+08:00`);
+      const logs = await storage.getAttendanceLogs(from, to, userId);
+
+      const sgtDayKey = (d: Date | string) =>
+        new Date(new Date(d as any).getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+      const completedBreakMins = (breaks: any) => {
+        if (!Array.isArray(breaks)) return 0;
+        let m = 0;
+        for (const b of breaks) {
+          if (b?.startAt && b?.endAt) {
+            const d = (new Date(b.endAt).getTime() - new Date(b.startAt).getTime()) / 60000;
+            if (isFinite(d) && d > 0) m += d;
+          }
+        }
+        return Math.round(m);
+      };
+
+      const expected = (staffMember.clockInTime || "").trim();
+      const expMatch = /^(\d{1,2}):(\d{2})$/.exec(expected);
+      const expectedMin = expMatch ? parseInt(expMatch[1]) * 60 + parseInt(expMatch[2]) : null;
+      const GRACE = 10;
+
+      const byDay: Record<string, any[]> = {};
+      for (const l of logs) (byDay[sgtDayKey(l.clockInAt)] ||= []).push(l);
+
+      const days = Object.keys(byDay).sort().map((day) => {
+        const dayLogs = byDay[day];
+        const closedLogs = dayLogs.filter((l) => l.clockOutAt);
+        const closed = closedLogs.length > 0;
+
+        // Arrival = earliest clock-in of the day (drives lateness + in-location),
+        // even if that first session is still open.
+        const firstIn = dayLogs.slice().sort(
+          (a, b) => new Date(a.clockInAt).getTime() - new Date(b.clockInAt).getTime(),
+        )[0];
+        // Departure & deduction anchor = latest CLOSED log (matches bulkDeductAttendance).
+        const lastClosed = closedLogs.slice().sort(
+          (a, b) => new Date(b.clockOutAt).getTime() - new Date(a.clockOutAt).getTime(),
+        )[0];
+
+        // Day-level worked time = sum across ALL closed logs, so split shifts and
+        // the deduction cap line up exactly with bulkDeductAttendance.
+        const dayRawMins = closedLogs.reduce(
+          (acc, l) => acc + Math.max(0, Math.round((new Date(l.clockOutAt).getTime() - new Date(l.clockInAt).getTime()) / 60000)),
+          0,
+        );
+        const dayBreakMins = closedLogs.reduce((acc, l) => acc + completedBreakMins(l.breaks), 0);
+        const grossMinutes = Math.max(0, dayRawMins - dayBreakMins);
+        const existingDeduction = closedLogs.reduce((acc, l) => acc + (l.deductionMinutes || 0), 0);
+        const existingReason =
+          (closedLogs.map((l) => l.deductionReason).find(Boolean) as string) || "";
+
+        let minutesLate = 0;
+        if (expectedMin != null) {
+          const sgtIn = new Date(new Date(firstIn.clockInAt).getTime() + 8 * 3600 * 1000);
+          const actualMin = sgtIn.getUTCHours() * 60 + sgtIn.getUTCMinutes();
+          minutesLate = Math.max(0, actualMin - expectedMin);
+        }
+        const late = minutesLate > GRACE;
+        const suggestedMinutes = late ? Math.min(minutesLate, grossMinutes) : 0;
+
+        return {
+          date: day,
+          logId: (lastClosed || firstIn).id,
+          closed,
+          clockInAt: firstIn.clockInAt,
+          clockOutAt: lastClosed?.clockOutAt ?? null,
+          clockInLat: firstIn.clockInLat, clockInLng: firstIn.clockInLng,
+          clockOutLat: lastClosed?.clockOutLat ?? null, clockOutLng: lastClosed?.clockOutLng ?? null,
+          rawMinutes: dayRawMins, breakMinutes: dayBreakMins, grossMinutes,
+          existingDeduction, existingReason,
+          minutesLate, late, suggestedMinutes,
+        };
+      });
+
+      res.json({
+        userId,
+        name: staffMember.name,
+        expectedStartTime: expected || null,
+        graceMinutes: GRACE,
+        days,
+      });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  // Apply (or clear) a single working day's deduction from the review screen.
+  // Routes through bulkDeductAttendance so the daily "one deduction per day on the
+  // latest closed log" semantics stay identical to the Bulk Deduct tool.
+  app.post("/api/admin/attendance/apply-review", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+    const caller = await storage.getUserById(req.session.userId);
+    if (!caller || caller.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    try {
+      const { userId, date, minutes, reason } = z.object({
+        userId: z.number().int(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+        minutes: z.number().int().min(0).max(1440),
+        reason: z.string().max(500).optional(),
+      }).parse(req.body);
+      if (minutes > 0 && !reason?.trim()) {
+        return res.status(400).json({ message: "A reason is required when deducting time." });
+      }
+      const from = new Date(`${date}T00:00:00+08:00`);
+      const to = new Date(`${date}T23:59:59+08:00`);
+      const result = await storage.bulkDeductAttendance({
+        userId, from, to,
+        minutesPerDay: minutes,
+        reason: minutes > 0 ? reason!.trim() : "",
+        mode: "set",
+      });
+      res.json(result);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   app.delete("/api/admin/attendance/:id", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
     const caller = await storage.getUserById(req.session.userId);
