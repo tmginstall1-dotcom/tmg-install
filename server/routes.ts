@@ -2383,7 +2383,13 @@ export async function registerRoutes(
           if (tm != null) suggestedMinutes = Math.min(tm, grossMinutes);
         }
 
-        const placeLabel = clockInPlace || "an off-site location";
+        // Name the spot they actually clocked in at. The van pickup depot is a
+        // known, recognizable place, so label it explicitly (even when the reverse
+        // geocode is vague) — this is the common "rode out with the driver" case.
+        const nearVanPickup = distVanM != null && distVanM <= VAN_MATCH_RADIUS_M;
+        const placeLabel = nearVanPickup
+          ? "the van pickup point (Woodlands St 31)"
+          : (clockInPlace || "an off-site location");
         const durationNote = suggestedMinutes > 0
           ? ` — ~${suggestedMinutes} min van/travel time not payable`
           : "";

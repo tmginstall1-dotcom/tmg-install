@@ -25,6 +25,8 @@ For flagged (offSite) days only, the endpoint reverse-geocodes the clock-in GPS 
 
 **Why:** user wanted the flag to show where they actually clocked in and how much travel time to dock, and to auto-estimate it from GPS (admin still adjustable). Reverse-geocode + GPS fetch are gated to offSite days only to bound cost.
 
+**Van-pickup label + auto-calc limits:** the off-site reason labels the clock-in "the van pickup point (Woodlands St 31)" whenever within VAN_MATCH_RADIUS_M (500m) of VAN_PICKUP, regardless of flags — so the "rode out with the driver" case reads clearly even when reverseGeocodeSg is vague. Two hard limits make auto-duration impossible on some days (admin must type minutes): (1) suggestedMinutes needs a continuous GPS TRACK between clock-in/out — attendance rows carry only single clock-in/out points, and per-staff GPS history often starts mid-month, so earlier days compute 0; (2) firstJobGeo needs a scheduled job that day (getQuotesAssignedTo). Missing either → no computed van→job time. This is DATA, not a code bug.
+
 ## Must mirror bulkDeductAttendance day semantics
 The review endpoint (`GET /api/admin/attendance/review`) and apply (`POST /api/admin/attendance/apply-review`) MUST match `storage.bulkDeductAttendance` or the review preview diverges from what actually gets saved:
 - Group by SGT day (UTC+8). Deduction anchor = latest CLOSED log; day worked minutes/cap = SUM across ALL closed logs (split shifts), NOT the primary log alone.
