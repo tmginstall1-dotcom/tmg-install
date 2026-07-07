@@ -18,5 +18,8 @@ The payslip Earnings section displays **GROSS** hours/pay (worked time after unp
 
 **How to apply:** any edit to payslip hour math must update BOTH the gross and net accumulators. P&L (server/routes.ts P&L route) computes staff cost independently from attendance using NET hours — it does NOT read payslip fields, but its net-hours formula must stay consistent with the payslip's net side (see [P&L salary calc]).
 
+## Display surfaces (must all show the line, or numbers don't tally)
+The "Working-Time Deduction" line must appear on EVERY payslip surface that lists line items, because Gross Pay already subtracts `time_deduction`. Surfaces: OfficialPayslip.tsx (PDF/print), the admin summary card in StaffManagement.tsx, and the staff summary card in HR.tsx (each card has TWO detail-item arrays — monthly + hourly branch). If a surface shows leave/loan lines but omits Working-Time Deduction, its components won't sum to the shown Gross Pay (user-reported bug: card total ≠ line items). Gate on `ps.timeDeduction > 0`.
+
 ## Entry point (already existed)
 Deductions are entered via the per-row attendance PATCH (`deductionMinutes`/`deductionReason`) or the "Bulk Deduct" modal in StaffManagement (`/api/admin/attendance/bulk-deduct` → `bulkDeductAttendance`, set/add modes, one reason applied per working day in the range).

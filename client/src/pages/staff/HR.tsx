@@ -836,6 +836,7 @@ function PayslipsTab() {
           const basicPay = parseFloat(ps.basicPay || "0");
           const mealAllowance = parseFloat(ps.mealAllowance || "0");
           const loanDeduction = parseFloat(ps.loanDeduction || "0");
+          const timeDeduction = parseFloat(ps.timeDeduction || "0");
           const detailItems = ps.isMonthlyBased
             ? [
                 { label: "Basic Salary", val: `S$${basicPay.toFixed(2)}`, highlight: false },
@@ -845,6 +846,7 @@ function PayslipsTab() {
                 { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}`, highlight: false },
                 ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}`, highlight: false }] : []),
                 { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, highlight: true, negative: true },
+                ...(timeDeduction > 0 ? [{ label: "Working-Time Deduction", val: `-S$${timeDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
                 ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
               ]
             : [
@@ -854,6 +856,7 @@ function PayslipsTab() {
                 { label: "OT Pay", val: `S$${parseFloat(ps.overtimePay).toFixed(2)}`, highlight: false },
                 ...(mealAllowance > 0 ? [{ label: "Meal Allowance", val: `S$${mealAllowance.toFixed(2)}`, highlight: false }] : []),
                 { label: "Leave Deduction", val: `-S$${parseFloat(ps.leaveDeduction).toFixed(2)}`, highlight: true, negative: true },
+                ...(timeDeduction > 0 ? [{ label: "Working-Time Deduction", val: `-S$${timeDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
                 ...(loanDeduction > 0 ? [{ label: "Loan Repayment", val: `-S$${loanDeduction.toFixed(2)}`, highlight: true, negative: true }] : []),
               ];
 
