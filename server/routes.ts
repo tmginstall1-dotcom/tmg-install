@@ -2217,6 +2217,7 @@ export async function registerRoutes(
       // the clock-in spot, derived from their own GPS track. null when unknown.
       const travelMinutesFromClockIn = async (
         uid: number, clockInAt: any, clockOutAt: any, cLat: number | null, cLng: number | null,
+        targetGeo?: { lat: number; lng: number } | null,
       ): Promise<number | null> => {
         try {
           const f = new Date(clockInAt);
@@ -2233,10 +2234,22 @@ export async function registerRoutes(
           const stops = computeGpsStops(norm, { radiusMeters: 120, minDurationMin: 8 });
           if (!stops.length) return null;
           let firstStop: (typeof stops)[number] | null = null;
-          for (const s of stops) {
-            if (cLat != null && cLng != null && isFinite(cLat) && isFinite(cLng)) {
-              if (haversineM(cLat, cLng, s.lat, s.lng) > 250) { firstStop = s; break; }
-            } else { firstStop = s; break; }
+          // Most accurate: deduct until they actually REACH the day's first job
+          // site (known coords). This is the true van→job driving time and it does
+          // not get fooled by an intermediate stop (e.g. loading at IKEA, breakfast).
+          if (targetGeo && isFinite(targetGeo.lat) && isFinite(targetGeo.lng)) {
+            for (const s of stops) {
+              if (haversineM(targetGeo.lat, targetGeo.lng, s.lat, s.lng) <= 200) { firstStop = s; break; }
+            }
+          }
+          // Fallback (no known job site, or GPS never dwelled near it): the first
+          // real stop clearly away (>250 m) from the clock-in spot.
+          if (!firstStop) {
+            for (const s of stops) {
+              if (cLat != null && cLng != null && isFinite(cLat) && isFinite(cLng)) {
+                if (haversineM(cLat, cLng, s.lat, s.lng) > 250) { firstStop = s; break; }
+              } else { firstStop = s; break; }
+            }
           }
           if (!firstStop) return null;
           return Math.max(0, Math.round((firstStop.startAt.getTime() - f.getTime()) / 60000));
@@ -2365,7 +2378,7 @@ export async function registerRoutes(
         if (offSite && inLat != null && inLng != null && isFinite(inLat) && isFinite(inLng)) {
           try { clockInPlace = await reverseGeocodeSg(inLat, inLng); } catch { clockInPlace = null; }
           const tm = await travelMinutesFromClockIn(
-            userId, firstIn.clockInAt, lastClosed?.clockOutAt ?? null, inLat, inLng,
+            userId, firstIn.clockInAt, lastClosed?.clockOutAt ?? null, inLat, inLng, firstJobGeo,
           );
           if (tm != null) suggestedMinutes = Math.min(tm, grossMinutes);
         }
