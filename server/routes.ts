@@ -52,6 +52,7 @@ import { renderInvoicePdf, renderAuditReportPdf, PdfBusyError } from "./invoice-
 // every customer-facing surface and the reconciliation tests share one rule.
 import { db } from "./db";
 import { geocodeSgAddress } from "./geocode";
+import { pickFirstGgvJobForStaff } from "./lib/ggv-first-job";
 import { appSettings, attendanceLogs, promoCodes, quotes as quotesTable, quoteItems as quoteItemsTable, catalogItems as catalogItemsTable, users as usersTable, jobUpdates as jobUpdatesTable, whatsappSessions as whatsappSessionsTable, whatsappMessages as whatsappMessagesTable, customers, jobChecklists as jobChecklistsTable, customerTokens as customerTokensTable, ggvJobs as ggvJobsTable, quoteStopSchema } from "@shared/schema";
 import { termsAcceptedForCurrentVersion, getBusinessPolicyClauses, getBusinessPolicyText, BusinessRuleFields, type BusinessRules } from "@shared/businessRules";
 import { loadBusinessRules, saveBusinessRules } from "./businessRules";
@@ -2282,6 +2283,18 @@ export async function registerRoutes(
           : null;
       }
 
+      // Does this staff do GoGoVan work? True when any GGV-sourced job is already
+      // assigned to them / their team, OR when they carry a GGV-crew capability
+      // flag (rides out with a driver / may clock in at the van pickup). GoGoVan
+      // jobs are imported into ggv_jobs and only some get mirrored into an assigned
+      // quote, so a real GGV day can otherwise look like it has "no scheduled job".
+      // The flag OR means the fallback still works for a GGV crew member whose
+      // jobs have never been mirrored. When true, GGV jobs stand in as first job.
+      const isGgvCrew =
+        assigned.some((q: any) => q.sourceChannel === "gogovan") ||
+        staffMember.mustClockInAtFirstJob === true ||
+        staffMember.canClockInAtVanPickup === true;
+
       const byDay: Record<string, any[]> = {};
       for (const l of logs) (byDay[sgtDayKey(l.clockInAt)] ||= []).push(l);
 
@@ -2320,7 +2333,17 @@ export async function registerRoutes(
         // flagged for admin review instead of being accepted.
         const inLat = firstIn.clockInLat != null ? parseFloat(firstIn.clockInLat) : null;
         const inLng = firstIn.clockInLng != null ? parseFloat(firstIn.clockInLng) : null;
-        const firstJob = firstJobByDay[day] || null;
+        let firstJob = firstJobByDay[day] || null;
+        // GGV fallback: if no assigned quote was found for the day but this staff
+        // does GoGoVan work, use the day's earliest GoGoVan job (by start time,
+        // with a usable address) as the first-job anchor for the location + travel
+        // checks. See server/lib/ggv-first-job.ts for the matching rules.
+        if (!firstJob && isGgvCrew) {
+          try {
+            const ggvs = await storage.getGGVJobs(day);
+            firstJob = pickFirstGgvJobForStaff(ggvs, { id: userId, teamId: staffMember.teamId });
+          } catch { /* GGV lookup is best-effort; fall through to no first job */ }
+        }
         let firstJobGeo: { lat: number; lng: number } | null = null;
         if (firstJob) {
           const geo = await geocodeSgAddress(firstJob.address);
