@@ -266,14 +266,19 @@ jobs:
           cache: npm
           cache-dependency-path: candidate/package-lock.json
 
-      - name: Normalize only the known Replit npm registry URL
+      - name: Normalize only the two observed Replit npm registry URLs
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           lock = Path("package-lock.json")
           text = lock.read_text()
-          lock.write_text(text.replace("http://package-firewall.replit.local/npm/", "https://registry.npmjs.org/"))
+          for registry in (
+              "http://package-firewall.replit.local/npm/",
+              "http://package-firewall.replit.internal/npm/",
+          ):
+              text = text.replace(registry, "https://registry.npmjs.org/")
+          lock.write_text(text)
           PY
 
       - name: Install frozen npm dependencies
@@ -425,7 +430,7 @@ jobs:
               "apiBaseBuildSetting": "https://tmginstall.com",
               "versionComparison": "Above verified public APK 116 and known local APK 20260701; no installed-device version has been observed",
               "sourceTransforms": [
-                  "Known Replit package-lock registry URL normalized to public npm",
+                  "Observed package-firewall.replit.local and package-firewall.replit.internal npm URL prefixes normalized to public npm; package versions and integrity values preserved",
                   "Capacitor sync generated Android integration files",
                   "versionCode and versionName changed in app/build.gradle; other reviewed Gradle settings retained",
               ],
