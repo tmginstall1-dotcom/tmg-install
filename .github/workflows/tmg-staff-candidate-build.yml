@@ -1,0 +1,451 @@
+name: Build reviewed TMG staff candidate (artifacts only)
+
+on:
+  push:
+    branches: [codex/staff-operations-2026-10-20]
+    paths:
+      - tmg-staff-android-inputs.tar.gz
+      - .github/workflows/tmg-staff-candidate-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmg-staff-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  INPUT_ARCHIVE: tmg-staff-android-inputs.tar.gz
+  REVIEWED_ARCHIVE_SHA256: ccf5212c05d2db59f16d05121e5e24d5857a7ebf383f010a7b116c650baeedbe
+  REVIEWED_SOURCE_COMMIT: ea1c57e2fa8f935a21a6cbb7ab9068fe2f48b446
+  EXPECTED_PACKAGE: com.tmginstall.staff
+  EXPECTED_SIGNER_SHA256: bc68524e65ed0d6c147a4bf736b3a609708f73042f558c429128120a1174a484
+  EXPECTED_TARGET_SDK: '33'
+  EXPECTED_MIN_SDK: '24'
+  VERSION_CODE_BASE: '2026102000'
+
+jobs:
+  build:
+    if: ${{ github.ref == 'refs/heads/codex/staff-operations-2026-10-20' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: candidate
+
+    steps:
+      - name: Checkout candidate branch without retaining repository credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify pinned archive and extract into a clean candidate directory
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, os, pathlib, re, shutil, tarfile
+
+          expected = os.environ["REVIEWED_ARCHIVE_SHA256"].lower()
+          if not re.fullmatch(r"[0-9a-f]{64}", expected):
+              raise SystemExit("The reviewed archive SHA256 must replace the placeholder before this job can run.")
+          if not re.fullmatch(r"[0-9a-f]{40}", os.environ["REVIEWED_SOURCE_COMMIT"]):
+              raise SystemExit("The independently reviewed source commit must replace the placeholder before this job can run.")
+          workspace = pathlib.Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          archive = workspace / os.environ["INPUT_ARCHIVE"]
+          if not archive.is_file() or archive.is_symlink():
+              raise SystemExit("The reviewed input archive is missing or is not a regular file.")
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          if digest != expected:
+              raise SystemExit("Input archive SHA256 does not match the reviewed value.")
+          target = workspace / "candidate"
+          if target.exists() or target.is_symlink():
+              raise SystemExit("candidate/ must not already exist in the repository.")
+
+          # Validate every entry before creating or extracting any candidate files.
+          entries = []
+          names = set()
+          folded_names = set()
+          total_size = 0
+          with tarfile.open(archive, "r:gz") as tf:
+              infos = tf.getmembers()
+              if len(infos) > 30000:
+                  raise SystemExit("Archive exceeds the reviewed-file count guard.")
+              for info in infos:
+                  name = info.name
+                  if not name or "\\" in name or ":" in name or any(ord(c) < 32 or ord(c) == 127 for c in name):
+                      raise SystemExit(f"Unsafe tar member name: {name!r}")
+                  relative = name
+                  parts = relative.split("/")
+                  if name.startswith("/") or any(p in ("", ".", "..") for p in parts):
+                      raise SystemExit(f"Unsafe tar path: {name!r}")
+                  if not info.isreg() or info.issparse():
+                      raise SystemExit(f"Only ordinary regular-file tar entries are allowed: {name!r}")
+                  mode = info.mode
+                  if mode not in (0o644, 0o755):
+                      raise SystemExit(f"Unexpected input file permissions: {name!r}")
+                  if relative in names or relative.casefold() in folded_names:
+                      raise SystemExit(f"Duplicate or case-colliding tar path: {name!r}")
+                  names.add(relative)
+                  folded_names.add(relative.casefold())
+                  lower_parts = [part.lower() for part in parts]
+                  filename = lower_parts[-1]
+                  if any(p in (".git", ".ssh", ".aws", ".codex", "node_modules", ".gradle") for p in lower_parts):
+                      raise SystemExit(f"Non-source/private directory in archive: {name!r}")
+                  if filename == ".env" or filename.startswith(".env.") or filename.endswith((".keystore", ".jks", ".p12", ".pfx", ".pem", ".key")):
+                      raise SystemExit(f"Environment or key material is forbidden: {name!r}")
+                  if filename in ("local.properties", ".npmrc"):
+                      raise SystemExit(f"Machine-specific or credential-bearing configuration is forbidden: {name!r}")
+                  total_size += info.size
+                  if info.size < 0 or info.size > 256 * 1024 * 1024 or total_size > 1024 * 1024 * 1024:
+                      raise SystemExit("Archive exceeds the extraction-size guard.")
+                  destination = target.joinpath(*parts)
+                  if not destination.resolve().is_relative_to(target.resolve()):
+                      raise SystemExit(f"Tar path escapes candidate/: {name!r}")
+                  entries.append((info, destination, mode))
+              target.mkdir()
+              for info, destination, mode in entries:
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  source = tf.extractfile(info)
+                  if source is None:
+                      raise SystemExit(f"Could not read regular tar entry: {info.name!r}")
+                  with source, destination.open("xb") as output:
+                      shutil.copyfileobj(source, output)
+                  destination.chmod(mode)
+          required = (
+              "package.json", "package-lock.json", "capacitor.config.ts",
+              "android/gradlew", "android/gradle/wrapper/gradle-wrapper.jar",
+              "android/gradle/wrapper/gradle-wrapper.properties",
+              "android/app/build.gradle", "android/app/google-services.json",
+              "ANDROID_BUILD_INPUT_MANIFEST.json", "android-build-inputs.sha256",
+          )
+          for relative in required:
+              if not (target / relative).is_file():
+                  raise SystemExit(f"Expected root-layout source file is missing: {relative}")
+          print(f"Verified archive SHA256: {digest}")
+          print(f"Extracted {len(entries)} entries into candidate/.")
+          PY
+
+      - name: Verify the pinned source manifest, complete file set and checksums
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re
+
+          def unique_object(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"Duplicate JSON key: {key!r}")
+                  result[key] = value
+              return result
+
+          root = pathlib.Path.cwd()
+          manifest_path = root / "ANDROID_BUILD_INPUT_MANIFEST.json"
+          checksum_path = root / "android-build-inputs.sha256"
+          manifest = json.loads(manifest_path.read_text(), object_pairs_hook=unique_object)
+          expected_commit = os.environ["REVIEWED_SOURCE_COMMIT"]
+          if not re.fullmatch(r"[0-9a-f]{40}", expected_commit) or manifest.get("sourceCommit") != expected_commit:
+              raise SystemExit("Source manifest is not bound to the independently reviewed frozen commit.")
+          if manifest.get("packageIdentity") != os.environ["EXPECTED_PACKAGE"]:
+              raise SystemExit("Unexpected source-manifest package identity.")
+          if manifest.get("requiredSignerSha256") != os.environ["EXPECTED_SIGNER_SHA256"]:
+              raise SystemExit("Unexpected source-manifest signing certificate.")
+          files = manifest.get("files")
+          if not isinstance(files, dict) or not files:
+              raise SystemExit("Source manifest must contain its nonempty file-to-SHA256 map.")
+          metadata = {"ANDROID_BUILD_INPUT_MANIFEST.json", "android-build-inputs.sha256"}
+          if metadata.intersection(files):
+              raise SystemExit("Manifest files map must exclude its own manifest and checksum metadata.")
+          fixed = {
+              "package.json", "package-lock.json", "vite.config.ts", "tsconfig.json",
+              "tailwind.config.ts", "postcss.config.js", "capacitor.config.ts",
+              "client/index.html", ".github/workflows/build-android.yml",
+              "android/build.gradle", "android/settings.gradle", "android/variables.gradle",
+              "android/gradle.properties", "android/capacitor.settings.gradle",
+              "android/gradlew", "android/gradlew.bat", "android/app/build.gradle",
+              "android/app/capacitor.build.gradle", "android/app/proguard-rules.pro",
+              "android/app/google-services.json",
+              "docs/android-staff-build-handoff.md",
+          }
+          prefixes = ("client/src/", "client/public/", "shared/", "android/gradle/wrapper/", "android/app/src/main/")
+          denied_parts = {".env", "uploads", "attached_assets", "tests", "test", "androidtest", "node_modules", ".git", "build", "generated-artifacts"}
+          denied_suffixes = {".keystore", ".jks", ".b64", ".p12", ".pfx", ".pem", ".apk", ".aab", ".sql", ".pdf", ".csv", ".zip", ".gz"}
+          actual = {p.relative_to(root).as_posix(): p for p in root.rglob("*") if p.is_file()}
+          if set(actual) != set(files) | metadata:
+              raise SystemExit("Archive contains missing or unlisted source files or metadata.")
+          actual_hashes = {}
+          for name, expected_hash in files.items():
+              if not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+                  raise SystemExit(f"Invalid manifest SHA256 for {name!r}.")
+              path = pathlib.PurePosixPath(name)
+              if not (name in fixed or name.startswith(prefixes)) or name.startswith("android/app/src/main/assets/"):
+                  raise SystemExit(f"Source path is outside the reviewed packaging allowlist: {name!r}")
+              if any(part.lower() in denied_parts for part in path.parts) or path.suffix.lower() in denied_suffixes:
+                  raise SystemExit(f"Private/generated or non-input source path: {name!r}")
+              data = actual[name].read_bytes()
+              if b"PRIVATE KEY-----" in data:
+                  raise SystemExit(f"Private key material in source file: {name!r}")
+              actual_hashes[name] = hashlib.sha256(data).hexdigest()
+              if actual_hashes[name] != expected_hash:
+                  raise SystemExit(f"Source file SHA256 mismatch: {name!r}")
+          actual_hashes[manifest_path.name] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+          checksums = {}
+          for line in checksum_path.read_text().splitlines():
+              match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+              if not match or match[2] in checksums:
+                  raise SystemExit("Malformed or duplicate checksum-file entry.")
+              checksums[match[2]] = match[1]
+          if set(checksums) != set(files) | {manifest_path.name}:
+              raise SystemExit("Checksum file must cover all source files and the manifest, excluding only itself.")
+          if checksums != actual_hashes:
+              raise SystemExit("Checksum file does not match the extracted source and manifest bytes.")
+
+          # This is the existing public Android client configuration, never a
+          # backend service-account credential. Do not print its identifiers/keys.
+          firebase_path = "android/app/google-services.json"
+          if firebase_path not in files:
+              raise SystemExit("The existing Android Firebase client configuration must be present in the reviewed manifest.")
+          firebase = json.loads(actual[firebase_path].read_text(), object_pairs_hook=unique_object)
+
+          def reject_nonpublic_material(value):
+              if isinstance(value, dict):
+                  if value.get("type") == "service_account" or any(key.lower() in {"private_key", "private_key_id", "client_secret"} for key in value):
+                      raise SystemExit("Android Firebase configuration must contain public client configuration only.")
+                  for child in value.values():
+                      reject_nonpublic_material(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      reject_nonpublic_material(child)
+
+          reject_nonpublic_material(firebase)
+          if not isinstance(firebase, dict):
+              raise SystemExit("Android Firebase configuration must be a JSON object.")
+          project = firebase.get("project_info")
+          clients = firebase.get("client")
+          if not isinstance(project, dict) or not isinstance(clients, list) or not clients:
+              raise SystemExit("Android Firebase configuration is missing project_info or client entries.")
+          project_number = project.get("project_number")
+          project_id = project.get("project_id")
+          if not isinstance(project_number, str) or not re.fullmatch(r"[0-9]+", project_number) or not isinstance(project_id, str) or not project_id.strip():
+              raise SystemExit("Android Firebase configuration has invalid public project metadata.")
+          matches = []
+          for client in clients:
+              if not isinstance(client, dict):
+                  raise SystemExit("Android Firebase client entries must be JSON objects.")
+              info = client.get("client_info")
+              android = info.get("android_client_info") if isinstance(info, dict) else None
+              if isinstance(android, dict) and android.get("package_name") == os.environ["EXPECTED_PACKAGE"]:
+                  matches.append(client)
+          if len(matches) != 1:
+              raise SystemExit("Android Firebase configuration must contain exactly one client matching the expected app package.")
+          app_id = matches[0]["client_info"].get("mobilesdk_app_id")
+          api_keys = matches[0].get("api_key")
+          if not isinstance(app_id, str) or not app_id.strip():
+              raise SystemExit("Matching Android Firebase client is missing its mobile SDK app identifier.")
+          if not isinstance(api_keys, list) or not api_keys or any(not isinstance(key, dict) or not isinstance(key.get("current_key"), str) or not key["current_key"].strip() for key in api_keys):
+              raise SystemExit("Matching Android Firebase client is missing its public API-key configuration.")
+          if "configuration_version" in firebase and (not isinstance(firebase["configuration_version"], str) or not firebase["configuration_version"].strip()):
+              raise SystemExit("Android Firebase configuration version must be a nonempty string when present.")
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write(f"VERIFIED_SOURCE_COMMIT={expected_commit}\n")
+              output.write(f"VERIFIED_SOURCE_FILE_COUNT={len(files)}\n")
+              output.write(f"VERIFIED_MANIFEST_SHA256={actual_hashes[manifest_path.name]}\n")
+              output.write(f"VERIFIED_CHECKSUMS_SHA256={hashlib.sha256(checksum_path.read_bytes()).hexdigest()}\n")
+              output.write("VERIFIED_FIREBASE_CLIENT_CONFIG=true\n")
+          print(f"Verified frozen commit {expected_commit}; exact allowlist and hashes for {len(files)} source files plus both metadata files.")
+          print("Existing public Firebase config shape verified; exactly one Android client matches the expected package. Backend pairing and push delivery were not tested.")
+          PY
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: candidate/package-lock.json
+
+      - name: Normalize only the known Replit npm registry URL
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lock = Path("package-lock.json")
+          text = lock.read_text()
+          lock.write_text(text.replace("http://package-firewall.replit.local/npm/", "https://registry.npmjs.org/"))
+          PY
+
+      - name: Install frozen npm dependencies
+        run: npm ci
+
+      - name: Build the bundled staff web client for the live API
+        run: npx --no-install vite build
+        env:
+          VITE_API_BASE: https://tmginstall.com
+          VITE_APP_VERSION: v1.4.20261020.${{ github.run_number }}
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licences and install Android 36 with AGP 8.13 build tools
+        run: |
+          set -euo pipefail
+          # yes may receive SIGPIPE when sdkmanager closes stdin.
+          set +o pipefail
+          yes | sdkmanager --licenses
+          license_status=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$license_status" -eq 0
+          # Capacitor 8 targets API 36. AGP 8.13's default/minimum Build Tools is
+          # 35.0.0; keep the APK-verification tool path below on that same version.
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Sync Capacitor from the reviewed source
+        run: npx --no-install cap sync android
+
+      - name: Set and verify the candidate versionCode and versionName
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, pathlib, re
+          code = int(os.environ["VERSION_CODE_BASE"]) + int(os.environ["GITHUB_RUN_NUMBER"])
+          name = "1.4.20261020." + os.environ["GITHUB_RUN_NUMBER"]
+          if not 2026102000 < code <= 2100000000:
+              raise SystemExit("Invalid candidate Android versionCode.")
+          path = pathlib.Path("android/app/build.gradle")
+          text = path.read_text()
+          updated, count = re.subn(r"(?m)^(\s*versionCode\s+)\d+(\s*(?://.*)?)$", lambda m: m[1] + str(code) + m[2], text)
+          if count != 1:
+              raise SystemExit("Expected exactly one literal versionCode in the reviewed Gradle file; adapt explicitly rather than guessing.")
+          updated, name_count = re.subn(r"""(?m)^(\s*versionName\s+)(["'])([^"']*)\2(\s*(?://.*)?)$""", lambda m: m[1] + m[2] + name + m[2] + m[4], updated)
+          if name_count != 1:
+              raise SystemExit("Expected exactly one literal versionName in the reviewed Gradle file; adapt explicitly rather than guessing.")
+          path.write_text(updated)
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write(f"CANDIDATE_VERSION_CODE={code}\n")
+              output.write(f"CANDIDATE_VERSION_NAME={name}\n")
+          print(f"Candidate versionCode: {code}; versionName: {name}; other Gradle settings preserved.")
+          PY
+
+      - name: Decode the existing signing identity
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::Existing release signing secrets are required; no debug or replacement signing key is permitted."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tmg-staff-candidate-release.keystore"
+          test -s "$RUNNER_TEMP/tmg-staff-candidate-release.keystore"
+
+      - name: Build only the signed release APK
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/tmg-staff-candidate-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Verify the APK certificate, package, version and archive provenance
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          apk = pathlib.Path("android/app/build/outputs/apk/release/app-release.apk")
+          if not apk.is_file():
+              raise SystemExit("Signed release APK is missing; debug APKs are not accepted.")
+          sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+          if not sdk:
+              raise SystemExit("Android SDK path is unavailable.")
+          tools = pathlib.Path(sdk) / "build-tools" / "35.0.0"
+          signature = subprocess.check_output([str(tools / "apksigner"), "verify", "--verbose", "--print-certs", str(apk)], text=True)
+          signers = re.findall(r"^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)\s*$", signature, re.M)
+          normalized = [s.replace(":", "").lower() for s in signers]
+          expected_signer = os.environ["EXPECTED_SIGNER_SHA256"].lower()
+          if len(normalized) != 1 or normalized[0] != expected_signer:
+              raise SystemExit("APK is not signed by the exact reviewed existing certificate.")
+          badging = subprocess.check_output([str(tools / "aapt"), "dump", "badging", str(apk)], text=True)
+          package_line = next((line for line in badging.splitlines() if line.startswith("package: ")), "")
+          fields = dict(re.findall(r"(\w+)='([^']*)'", package_line))
+          if fields.get("name") != os.environ["EXPECTED_PACKAGE"]:
+              raise SystemExit("Unexpected APK application package.")
+          code = int(fields.get("versionCode", "0"))
+          if code != int(os.environ["CANDIDATE_VERSION_CODE"]) or not 2026102000 < code <= 2100000000:
+              raise SystemExit("APK versionCode does not match the required candidate value.")
+          if fields.get("versionName") != os.environ["CANDIDATE_VERSION_NAME"]:
+              raise SystemExit("APK versionName does not match the required candidate value.")
+          target_match = re.search(r"(?m)^targetSdkVersion:'([0-9]+)'\s*$", badging)
+          min_match = re.search(r"(?m)^sdkVersion:'([0-9]+)'\s*$", badging)
+          if not target_match or not min_match:
+              raise SystemExit("APK target/min SDK metadata is missing.")
+          target_sdk = int(target_match[1])
+          min_sdk = int(min_match[1])
+          if target_sdk != int(os.environ["EXPECTED_TARGET_SDK"]) or min_sdk != int(os.environ["EXPECTED_MIN_SDK"]):
+              raise SystemExit("APK target/min SDK differs from the reviewed source's intentional configuration.")
+          report = {
+              "purpose": "Reviewed staff candidate; downloadable artifacts only; not published or distributed",
+              "workflowCommit": os.environ["GITHUB_SHA"],
+              "workflowRef": os.environ["GITHUB_REF"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "inputArchive": os.environ["INPUT_ARCHIVE"],
+              "inputArchiveSha256": os.environ["REVIEWED_ARCHIVE_SHA256"],
+              "sourceCommit": os.environ["VERIFIED_SOURCE_COMMIT"],
+              "sourceFileCount": int(os.environ["VERIFIED_SOURCE_FILE_COUNT"]),
+              "sourceManifestSha256": os.environ["VERIFIED_MANIFEST_SHA256"],
+              "sourceChecksumsSha256": os.environ["VERIFIED_CHECKSUMS_SHA256"],
+              "sourceManifestVerification": "Pinned source commit, exact allowed file set, all source hashes and both metadata files verified before dependency installation",
+              "firebaseClientConfig": {
+                  "publicShapeAndSinglePackageMatchVerified": os.environ.get("VERIFIED_FIREBASE_CLIENT_CONFIG") == "true",
+                  "backendProjectPairing": "Not verified",
+                  "livePushDelivery": "Not tested",
+              },
+              "apkSha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+              "package": fields["name"],
+              "versionCode": code,
+              "versionName": fields.get("versionName"),
+              "targetSdk": target_sdk,
+              "minSdk": min_sdk,
+              "capacitorTargetCompatibility": "Reviewed source intentionally retains target SDK 33 to preserve existing behavior; Capacitor 8 documents support for target SDK 36. Artifact compilation is not native runtime validation or distribution approval.",
+              "signerCertificateSha256": normalized[0],
+              "apiBaseBuildSetting": "https://tmginstall.com",
+              "versionComparison": "Above verified public APK 116 and known local APK 20260701; no installed-device version has been observed",
+              "sourceTransforms": [
+                  "Known Replit package-lock registry URL normalized to public npm",
+                  "Capacitor sync generated Android integration files",
+                  "versionCode and versionName changed in app/build.gradle; other reviewed Gradle settings retained",
+              ],
+              "nativeRuntimeTest": "Not performed by this artifact build",
+          }
+          pathlib.Path("apk-verification-report.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Remove temporary signing material
+        if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
+        run: rm -f -- "$RUNNER_TEMP/tmg-staff-candidate-release.keystore"
+
+      - name: Upload verified signed APK and verification report only
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmg-staff-reviewed-signed-apk-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            candidate/android/app/build/outputs/apk/release/app-release.apk
+            candidate/apk-verification-report.json
+          if-no-files-found: error
+          retention-days: 30
