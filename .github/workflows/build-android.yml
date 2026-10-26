@@ -1,206 +1,149 @@
-name: Build Android APK & AAB
+name: Sign frozen TMG compiled APK (artifacts only)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'android/**'
-      - 'client/**'
-      - 'shared/**'
-      - 'capacitor.config.ts'
-      - '.github/workflows/build-android.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tmg-staff-sign-only-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REVIEWED_VERIFIER_SHA256: daa2cee2521903bf4ea7973fc98f12ea65aea3645ff35e48a9b3699e7d30cf98
+  REVIEWED_CONTRACT_SHA256: 777cb3392a41e6f25565b887b568077d8ec484a6e23f50b059ebceff97d2e386
+
 jobs:
-  build:
+  sign:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'tmginstall1-dotcom/tmg-install' &&
+      github.ref == 'refs/heads/codex/staff-operations-2026-10-20'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Checkout repo
+      - name: Check out only the reviewed verifier, frozen contract and exact compiled APK
         uses: actions/checkout@v4
-
-      # Detect which optional secrets are present WITHOUT exposing their values
-      # to the rest of the job. Only booleans are written to step outputs; the
-      # secret values themselves are injected per-step below, on the minimal set
-      # of steps that actually need them (keeps signing keys out of npm ci etc.).
-      - name: Detect available signing / webhook secrets
-        id: flags
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          BUILD_WEBHOOK_TOKEN: ${{ secrets.BUILD_WEBHOOK_TOKEN }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
-            echo "signing=true" >> "$GITHUB_OUTPUT"
-            echo "Signing secrets present — release APK/AAB will be signed and published."
-          else
-            echo "signing=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Signing secrets missing (need KEYSTORE_BASE64 + KEYSTORE_PASSWORD + KEY_ALIAS) — release/publish steps will be skipped."
-          fi
-          if [ -n "$BUILD_WEBHOOK_TOKEN" ]; then
-            echo "notify=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "notify=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/scripts/verify-signing-only-apk.py
+            /.github/signing-only-contract.json
+            /build-inputs/tmg-staff-reviewed-unsigned.apk
 
-      - name: Point package-lock at public npm registry (Replit proxy is internal-only)
+      - name: Check independent pins and exact APK before network tools or signing material
         run: |
-          sed -i 's#http://package-firewall.replit.local/npm/#https://registry.npmjs.org/#g' package-lock.json
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, importlib.util, os, pathlib, re
+          for variable, filename in (
+              ('REVIEWED_VERIFIER_SHA256', '.github/scripts/verify-signing-only-apk.py'),
+              ('REVIEWED_CONTRACT_SHA256', '.github/signing-only-contract.json'),
+          ):
+              pin = os.environ[variable]
+              if not re.fullmatch('[0-9a-f]{64}', pin):
+                  raise SystemExit('Independent review pin is missing: ' + variable)
+              path = pathlib.Path(filename)
+              if not path.is_file() or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != pin:
+                  raise SystemExit('Reviewed file differs from its pin: ' + filename)
+          spec = importlib.util.spec_from_file_location('reviewed_verifier', '.github/scripts/verify-signing-only-apk.py')
+          verifier = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(verifier)
+          c = verifier.load_contract('.github/signing-only-contract.json')
+          if c['transfer_kind'] != 'repository_apk':
+              raise SystemExit('This manual workflow only accepts the frozen repository APK.')
+          apk = pathlib.Path('build-inputs/tmg-staff-reviewed-unsigned.apk')
+          if not apk.is_file() or apk.is_symlink() or not 0 < apk.stat().st_size <= verifier.MAX_APK:
+              raise SystemExit('Exact reviewed unsigned APK is missing or unsafe.')
+          if hashlib.sha256(apk.read_bytes()).hexdigest() != c['unsigned_sha256']:
+              raise SystemExit('Unsigned APK differs from its independently frozen hash.')
+          verifier.zip_payload(apk)
+          print('Frozen verifier, contract and exact compiled APK verified; no application source executed.')
+          PY
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Build web bundle (Vite)
-        run: npm run build
-        env:
-          VITE_API_BASE: https://tmg-install-project--tmginstall.replit.app
-          VITE_APP_VERSION: v1.0.${{ github.run_number }}
-
-      - name: Set up Java 21
+      - name: Set up Java 21 for Android signing tools
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
+      - name: Set up Android tools
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licences
-        run: yes | sdkmanager --licenses || true
+      - name: Install reviewed Android build tools
+        run: sdkmanager "build-tools;35.0.0"
 
-      - name: Install required SDK components
+      - name: Inspect package, version, API and final repair markers before keys, then align
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          set -euo pipefail
+          python3 .github/scripts/verify-signing-only-apk.py inspect \
+            --contract .github/signing-only-contract.json \
+            --apk build-inputs/tmg-staff-reviewed-unsigned.apk \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --report "$RUNNER_TEMP/tmg-unsigned-inspection.json"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -P 16 -f 4 \
+            build-inputs/tmg-staff-reviewed-unsigned.apk "$RUNNER_TEMP/tmg-aligned-unsigned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$RUNNER_TEMP/tmg-aligned-unsigned.apk"
+          python3 .github/scripts/verify-signing-only-apk.py inspect --aligned \
+            --contract .github/signing-only-contract.json \
+            --apk "$RUNNER_TEMP/tmg-aligned-unsigned.apk" \
+            --original build-inputs/tmg-staff-reviewed-unsigned.apk \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --report "$RUNNER_TEMP/tmg-aligned-inspection.json"
 
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Update Java compatibility to 21 (re-apply after sync)
-        run: |
-          sed -i 's/VERSION_17/VERSION_21/g' android/app/capacitor.build.gradle || true
-          sed -i 's/VERSION_17/VERSION_21/g' android/app/build.gradle || true
-
-      - name: Set versionCode and versionName from run number
-        run: |
-          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" android/app/build.gradle
-          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
-          echo "versionCode = ${{ github.run_number }}, versionName = 1.0.${{ github.run_number }}"
-
-      - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
-
-      # ── Debug APK (always built — no secrets needed) ─────────────────────────
-
-      - name: Build Debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug --no-daemon
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: tmg-staff-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
-
-      # ── Release AAB (Play Store) — requires ALL keystore secrets ─────────────
-
-      - name: Decode keystore
-        if: ${{ steps.flags.outputs.signing == 'true' }}
+      - name: Decode existing signing identity
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/tmg-staff-release.keystore
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tmg-sign-only.keystore"
+          test -s "$RUNNER_TEMP/tmg-sign-only.keystore"
 
-      - name: Build Release AAB (Android App Bundle for Play Store)
-        if: ${{ steps.flags.outputs.signing == 'true' }}
+      - name: Sign the inspected aligned APK without running application build code
         env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          KEYSTORE_PATH: ${{ github.workspace }}/android/app/tmg-staff-release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          cd android
-          ./gradlew bundleRelease --no-daemon
+          set -euo pipefail
+          test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$RUNNER_TEMP/tmg-sign-only.keystore" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out "$RUNNER_TEMP/tmg-reviewed-signed.apk" "$RUNNER_TEMP/tmg-aligned-unsigned.apk"
 
-      - name: Upload Release AAB
-        if: ${{ steps.flags.outputs.signing == 'true' }}
+      - name: Verify exact existing signer, unchanged payload, final identity and alignment
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-signing-only-apk.py inspect \
+            --contract .github/signing-only-contract.json \
+            --apk "$RUNNER_TEMP/tmg-reviewed-signed.apk" \
+            --original build-inputs/tmg-staff-reviewed-unsigned.apk \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --report "$RUNNER_TEMP/tmg-signed-verification.json"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$RUNNER_TEMP/tmg-reviewed-signed.apk"
+
+      - name: Remove temporary signing material
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/tmg-sign-only.keystore"
+
+      - name: Upload verified signed APK and bounded reports only
         uses: actions/upload-artifact@v4
         with:
-          name: tmg-staff-release-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 90
-
-      # ── Release APK — requires ALL keystore secrets ───────────────────────────
-      # KEYSTORE_BASE64, KEYSTORE_PASSWORD, and KEY_ALIAS must be set as
-      # GitHub Actions repository secrets. The keystore is never committed to the repo.
-      - name: Build Release APK (signed — for direct install)
-        if: ${{ steps.flags.outputs.signing == 'true' }}
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          KEYSTORE_PATH: ${{ github.workspace }}/android/app/tmg-staff-release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          cd android
-          ./gradlew assembleRelease --no-daemon
-
-      - name: Upload Signed Release APK
-        if: ${{ steps.flags.outputs.signing == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: tmg-staff-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 90
-
-      # ── Publish APK to GitHub Releases (permanent public download link) ───────
-
-      - name: Prepare APK for release (consistent filename)
-        if: ${{ steps.flags.outputs.signing == 'true' }}
-        run: |
-          cp android/app/build/outputs/apk/release/app-release.apk tmg-install.apk
-
-      - name: Publish APK as GitHub Release (latest-build)
-        if: ${{ steps.flags.outputs.signing == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest-build
-          name: "TMG Install — Latest Staff App"
-          body: |
-            **TMG Install Staff App**
-
-            Tap the **tmg-install.apk** link below on your Android device to download and install.
-
-            > If prompted, enable **Install unknown apps** in Android Settings.
-          files: tmg-install.apk
-          fail_on_unmatched_files: true
-          make_latest: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── Auto-notify server: staff apps show update banner immediately ──────────
-
-      - name: Notify server of new build (OTA auto-update)
-        if: ${{ steps.flags.outputs.notify == 'true' }}
-        env:
-          BUILD_WEBHOOK_TOKEN: ${{ secrets.BUILD_WEBHOOK_TOKEN }}
-        run: |
-          RUN_NUM=${{ github.run_number }}
-          RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "https://tmg-install-project--tmginstall.replit.app/api/system/build-complete" \
-            -H "Content-Type: application/json" \
-            -d "{\"token\":\"${BUILD_WEBHOOK_TOKEN}\",\"version\":\"v1.0.${RUN_NUM}\",\"apkUrl\":\"https://github.com/tmginstall1-dotcom/tmg-install/releases/download/latest-build/tmg-install.apk\"}")
-          echo "Server response HTTP: $RESULT"
-          if [ "$RESULT" = "200" ]; then
-            echo "Server notified — v1.0.${RUN_NUM} is now the latest version"
-          else
-            echo "::warning::OTA notify failed (HTTP $RESULT). Staff update banner NOT updated. Check that BUILD_WEBHOOK_TOKEN matches on GitHub and the production server, then use Admin → Settings → App Updates → Force Publish to set v1.0.${RUN_NUM} manually."
-          fi
+          name: tmg-staff-sign-only-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/tmg-reviewed-signed.apk
+            ${{ runner.temp }}/tmg-unsigned-inspection.json
+            ${{ runner.temp }}/tmg-aligned-inspection.json
+            ${{ runner.temp }}/tmg-signed-verification.json
+          if-no-files-found: error
+          retention-days: 14
