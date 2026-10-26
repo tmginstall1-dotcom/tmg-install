@@ -1,0 +1,36 @@
+{
+  "frozen": true,
+  "transfer_kind": "repository_apk",
+  "repository_apk_path": "build-inputs/tmg-staff-reviewed-unsigned.apk",
+  "source_commit": "fd232c3057f3a879c0002cdc16d18d160fe51518",
+  "unsigned_sha256": "a9b0e685fc97c8859764976df46cf3dee936d8363bce616a1e6f523ba0ed02f2",
+  "expected_version_name": "1.4.20261026.6",
+  "expected_version_code": 2026102606,
+  "minimum_previous_version_code": 2026102405,
+  "expected_min_sdk": 24,
+  "expected_target_sdk": 33,
+  "expected_api_base": "https://tmginstall.com",
+  "required_markers": {
+    "checklist_recovery": [
+      "Confirm work before customer sign-off",
+      "Current saved confirmations are unverified. Retry loading the checklist.",
+      "Go to remaining confirmations (",
+      "The saved checklist differs from your selection. Review it and retry saving."
+    ],
+    "admin_close_preserved": [
+      "These cases are closed, not unfinished tasks. Any later staff evidence is optional.",
+      "Staff proof was not submitted or verified. The case is closed; adding genuine staff evidence later is optional and does not reopen it."
+    ],
+    "higher_version_update_only": [
+      "getInfo().then(",
+      ".map(BigInt)",
+      "if(m!==u)return u>m"
+    ]
+  },
+  "payload_entry_sha256": {
+    "assets/public/assets/JobDetail-D-VMU9gF.js": "b4152c477773fb7b5c5314522adaa30017be784744da1c54f20f8b8ab19b19b4",
+    "assets/public/assets/Dashboard-CpN2gEe5.js": "c679a9cfef7fe63211902ad8b61aae369d515189e9c5c803474189d675ef4747",
+    "assets/public/assets/Login-7ERIwXN3.js": "39f40853b5966dac84ce2f51161dbae57d8800e124d452697bf72bc03e7558bd"
+  },
+  "expected_baked_version": "1.4.20261026.6"
+}
