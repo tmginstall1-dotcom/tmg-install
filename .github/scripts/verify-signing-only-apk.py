@@ -47,6 +47,7 @@ def load_contract(path):
     else:
         require(c.get("repository_apk_path") == REPOSITORY_APK_PATH, "Repository APK path differs from the exact reviewed path.")
     require(re.fullmatch(r"1\.4\.[0-9]{8}\.[0-9]+", c.get("expected_version_name", "")), "Invalid final version name.")
+    require(c.get("expected_baked_version") in {c["expected_version_name"], "v" + c["expected_version_name"]}, "Bundled display version differs from native version.")
     require(type(c.get("expected_version_code")) is int and
             type(c.get("minimum_previous_version_code")) is int and
             2026102405 <= c["minimum_previous_version_code"] < c["expected_version_code"] <= 2100000000,
@@ -197,7 +198,7 @@ def inspect_apk(path, c, aapt, original=None, apksigner=None, aligned=False):
             require(found, "Required final repair marker is absent: " + group)
             hits[group] += found
     require(any(c["expected_api_base"].encode() in data for data in scripts.values()), "Live API base marker is absent.")
-    baked = ("v" + c["expected_version_name"]).encode()
+    baked = c["expected_baked_version"].encode()
     require(any(baked in data for data in scripts.values()), "Bundled update version differs from Android version.")
     badging = subprocess.check_output([aapt, "dump", "badging", str(path)], text=True, stderr=subprocess.PIPE)
     check_badging(badging, c)
@@ -209,7 +210,7 @@ def inspect_apk(path, c, aapt, original=None, apksigner=None, aligned=False):
               "version_code": c["expected_version_code"], "sha256": digest, "bytes": Path(path).stat().st_size,
               "payload_entries": len(hashes), "payload_digest": sha(json.dumps(hashes, sort_keys=True).encode()),
               "repair_marker_groups": {k: sorted(set(v)) for k, v in hits.items()}, "api_base": c["expected_api_base"],
-              "application_source_executed": False, "native_runtime_tested": False}
+              "application_source_executed": False, "native_runtime_tested": False, "baked_version": c["expected_baked_version"]}
     if original is not None:
         report.update({"payload_unchanged": True, "unsigned_sha256": c["unsigned_sha256"]})
     if original is not None and not aligned:
