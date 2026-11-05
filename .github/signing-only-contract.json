@@ -2,11 +2,11 @@
   "frozen": true,
   "transfer_kind": "repository_apk",
   "repository_apk_path": "build-inputs/tmg-staff-reviewed-unsigned.apk",
-  "source_commit": "fd232c3057f3a879c0002cdc16d18d160fe51518",
-  "unsigned_sha256": "a9b0e685fc97c8859764976df46cf3dee936d8363bce616a1e6f523ba0ed02f2",
-  "expected_version_name": "1.4.20261026.6",
-  "expected_version_code": 2026102606,
-  "minimum_previous_version_code": 2026102405,
+  "source_commit": "5499f0dc14b54de0fa5def2f62e3e8889eeb4e2f",
+  "unsigned_sha256": "b1f61731c9deac5e9722e55424c2115a7d7fcd922bf82cc1264a7d1b827a404e",
+  "expected_version_name": "1.4.20261105.7",
+  "expected_version_code": 2026110507,
+  "minimum_previous_version_code": 2026102606,
   "expected_min_sdk": 24,
   "expected_target_sdk": 33,
   "expected_api_base": "https://tmginstall.com",
@@ -19,18 +19,22 @@
     ],
     "admin_close_preserved": [
       "These cases are closed, not unfinished tasks. Any later staff evidence is optional.",
-      "Staff proof was not submitted or verified. The case is closed; adding genuine staff evidence later is optional and does not reopen it."
+      "Staff proof was not submitted or verified. The case is closed; adding genuine staff evidence later is optional and does not reopen it.",
+      "Missing completion evidence",
+      "Search completion evidence",
+      "Collapse history"
     ],
     "higher_version_update_only": [
       "getInfo().then(",
       ".map(BigInt)",
-      "if(m!==u)return u>m"
+      "if(d!==m)return m>d"
     ]
   },
   "payload_entry_sha256": {
-    "assets/public/assets/JobDetail-D-VMU9gF.js": "b4152c477773fb7b5c5314522adaa30017be784744da1c54f20f8b8ab19b19b4",
-    "assets/public/assets/Dashboard-CpN2gEe5.js": "c679a9cfef7fe63211902ad8b61aae369d515189e9c5c803474189d675ef4747",
-    "assets/public/assets/Login-7ERIwXN3.js": "39f40853b5966dac84ce2f51161dbae57d8800e124d452697bf72bc03e7558bd"
+    "assets/public/assets/JobDetail-CzuHcQJ1.js": "ffb496d1e7468ac290e6f5d47e84b1554c529897dc50d2d593c87b5d5a7bcdbf",
+    "assets/public/assets/Dashboard-CQIDWU-_.js": "8d857cea5f30c348738e6bdf548bf8c5ffeca522dd6911bf436ed2ddf904de53",
+    "assets/public/assets/Login-DZByx8AN.js": "df748f98ef97f45815d0d8222695c611eb35e245e2e96b6aa3a5e8b87d7bbf4c"
   },
-  "expected_baked_version": "1.4.20261026.6"
+  "expected_baked_version": "1.4.20261105.7",
+  "proposal_status": "AWAITING_INDEPENDENT_REVIEW_NOT_APPROVED"
 }
